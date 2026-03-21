@@ -1,0 +1,136 @@
+import React from 'react';
+import './GameMenu.css';
+
+export type GameMode = 'pvp' | 'bot' | 'puzzle' | 'polgar' | 'endgame';
+
+interface GameMenuProps {
+    onStartGame: (mode: GameMode, playerColor: 'w' | 'b', skillLevel: number, polgarType?: string) => void;
+}
+
+const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
+    const [mode, setMode] = React.useState<GameMode>('pvp');
+    const [playerColor, setPlayerColor] = React.useState<'w' | 'b'>('w');
+    const [skillLevel, setSkillLevel] = React.useState(10);
+    const [polgarType, setPolgarType] = React.useState('Mate in One');
+
+    return (
+        <div className="game-menu">
+            <h2 className="game-menu__title">Select Game Mode</h2>
+            
+            <div className="game-menu__options">
+                <button 
+                    className={`game-menu__button ${mode === 'pvp' ? 'active' : ''}`}
+                    onClick={() => setMode('pvp')}
+                >
+                    <span className="game-menu__icon">👥</span>
+                    <span>Play 2P</span>
+                </button>
+                <button 
+                    className={`game-menu__button ${mode === 'bot' ? 'active' : ''}`}
+                    onClick={() => setMode('bot')}
+                >
+                    <span className="game-menu__icon">🤖</span>
+                    <span>Play Bot</span>
+                </button>
+                <button 
+                    className={`game-menu__button ${mode === 'puzzle' ? 'active' : ''}`}
+                    onClick={() => setMode('puzzle')}
+                >
+                    <span className="game-menu__icon">🧩</span>
+                    <span>Lichess</span>
+                </button>
+                <button 
+                    className={`game-menu__button ${mode === 'polgar' ? 'active' : ''}`}
+                    onClick={() => setMode('polgar')}
+                >
+                    <span className="game-menu__icon">👑</span>
+                    <span>Polgar</span>
+                </button>
+                <button 
+                    className={`game-menu__button ${mode === 'endgame' ? 'active' : ''}`}
+                    onClick={() => setMode('endgame')}
+                >
+                    <span className="game-menu__icon">⛰️</span>
+                    <span>Endgame</span>
+                </button>
+            </div>
+
+            {mode === 'polgar' && (
+                <div className="game-menu__bot-settings">
+                    <div className="game-menu__setting">
+                        <label>Select Your Challenge:</label>
+                        <div className="game-menu__options">
+                            <button 
+                                className={`game-menu__button ${polgarType === 'Mate in One' ? 'active' : ''}`}
+                                onClick={() => setPolgarType('Mate in One')}
+                            >
+                                Mate in 1
+                            </button>
+                            <button 
+                                className={`game-menu__button ${polgarType === 'Mate in Two' ? 'active' : ''}`}
+                                onClick={() => setPolgarType('Mate in Two')}
+                            >
+                                Mate in 2
+                            </button>
+                            <button 
+                                className={`game-menu__button ${polgarType === 'Mate in Three' ? 'active' : ''}`}
+                                onClick={() => setPolgarType('Mate in Three')}
+                            >
+                                Mate in 3
+                            </button>
+                            <button 
+                                className={`game-menu__button ${polgarType === 'Review Due' ? 'active' : ''}`}
+                                onClick={() => setPolgarType('Review Due')}
+                            >
+                                Review Due
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {mode === 'bot' && (
+                <div className="game-menu__bot-settings">
+                    <div className="game-menu__setting">
+                        <label>Your Color:</label>
+                        <div className="game-menu__color-select">
+                            <button 
+                                className={`color-btn white ${playerColor === 'w' ? 'selected' : ''}`}
+                                onClick={() => setPlayerColor('w')}
+                            >
+                                White
+                            </button>
+                            <button 
+                                className={`color-btn black ${playerColor === 'b' ? 'selected' : ''}`}
+                                onClick={() => setPlayerColor('b')}
+                            >
+                                Black
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="game-menu__setting">
+                        <label>Skill Level (0-20): {skillLevel}</label>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max="20" 
+                            value={skillLevel} 
+                            onChange={(e) => setSkillLevel(Number(e.target.value))}
+                            className="game-menu__slider"
+                        />
+                    </div>
+                </div>
+            )}
+
+            <button 
+                className="game-menu__start-btn"
+                onClick={() => onStartGame(mode, playerColor, skillLevel, polgarType)}
+            >
+                Start Game
+            </button>
+        </div>
+    );
+};
+
+export default GameMenu;

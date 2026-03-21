@@ -1,0 +1,58 @@
+.square {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.square--light {
+    background-color: #ebecd0;
+}
+
+.square--dark {
+    background-color: #739552;
+}
+
+.square--selected {
+    background-color: rgba(255, 255, 51, 0.5) !important;
+}
+
+.square--legal {
+    cursor: pointer;
+}
+
+.square--last-from {
+    background-color: rgba(255, 255, 51, 0.4) !important;
+}
+
+.square--last-to {
+    background-color: rgba(255, 255, 51, 0.5) !important;
+}
+
+.square--check {
+    background: radial-gradient(circle, #ff0000 0%, #cc0000 40%, transparent 70%) !important;
+}
+
+.square__legal-dot {
+    width: 28%;
+    height: 28%;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.square__legal-capture {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 5px solid rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.square:hover {
+    filter: brightness(1.05);
+}

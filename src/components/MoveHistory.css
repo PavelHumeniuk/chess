@@ -1,0 +1,73 @@
+.move-history {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+}
+
+.move-history__title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #a0a0a0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 12px 0;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.move-history__list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 400px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.move-history__empty {
+    color: #666;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.move-history__row {
+    display: grid;
+    grid-template-columns: 30px 1fr 1fr;
+    gap: 4px;
+    padding: 3px 4px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.85rem;
+}
+
+.move-history__row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.move-history__number {
+    color: #666;
+    text-align: right;
+    padding-right: 4px;
+}
+
+.move-history__move {
+    color: #d0d0d0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: default;
+}
+
+.move-history__move:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.move-history__move--white {
+    color: #f0f0f0;
+}
+
+.move-history__move--black {
+    color: #b0b0b0;
+}

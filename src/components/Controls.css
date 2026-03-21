@@ -1,0 +1,46 @@
+.controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.controls__button {
+    padding: 10px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.controls__button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.controls__button:active {
+    transform: translateY(0);
+}
+
+.controls__button--pulse {
+    animation: button-pulse 2s ease-in-out infinite alternate;
+    border-color: #f39c12;
+    background: rgba(243, 156, 18, 0.15);
+}
+
+@keyframes button-pulse {
+    from {
+        box-shadow: 0 0 8px rgba(243, 156, 18, 0.2);
+    }
+
+    to {
+        box-shadow: 0 0 20px rgba(243, 156, 18, 0.4);
+    }
+}

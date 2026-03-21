@@ -1,0 +1,44 @@
+[
+    {
+        "id": "eg-1",
+        "name": "King + Queen vs King",
+        "fen": "k7/8/1Q6/8/8/8/8/K7 w - - 0 1",
+        "side": "w",
+        "description": "Checkmate the lone king using your queen and king."
+    },
+    {
+        "id": "eg-2",
+        "name": "King + Rook vs King",
+        "fen": "k7/8/1R6/8/8/8/8/K7 w - - 0 1",
+        "side": "w",
+        "description": "Force the king to the edge and deliver mate with the rook."
+    },
+    {
+        "id": "eg-3",
+        "name": "Two Rooks vs King",
+        "fen": "k7/8/1R6/2R5/8/8/8/K7 w - - 0 1",
+        "side": "w",
+        "description": "Use the 'ladder mate' technique with both rooks."
+    },
+    {
+        "id": "eg-4",
+        "name": "King + Two Bishops vs King",
+        "fen": "k7/8/1B6/2B5/8/8/8/K7 w - - 0 1",
+        "side": "w",
+        "description": "A classic test of coordination. Force the king into a corner."
+    },
+    {
+        "id": "eg-5",
+        "name": "Lucena Position",
+        "fen": "1K1r4/3P4/k7/8/8/r7/8/7R w - - 0 1",
+        "side": "w",
+        "description": "The most important rook endgame. Can you build the bridge?"
+    },
+    {
+        "id": "eg-6",
+        "name": "Philidor Position",
+        "fen": "4k3/1R1P4/4K3/r7/8/8/8/8 b - - 0 1",
+        "side": "b",
+        "description": "Defend as Black. Can you reach the drawn position?"
+    }
+]

@@ -1,0 +1,65 @@
+.game-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-width: 220px;
+    justify-content: center;
+}
+
+.game-status--check {
+    border-color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+    animation: pulse-check 1s ease-in-out infinite alternate;
+}
+
+.game-status--gameover {
+    border-color: #f39c12;
+    background: rgba(243, 156, 18, 0.1);
+}
+
+.game-status__indicator {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.game-status__turn-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.game-status__turn-dot--w {
+    background: #f0f0f0;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.game-status__turn-dot--b {
+    background: #1a1a2e;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.game-status__text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #e0e0e0;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+@keyframes pulse-check {
+    from {
+        box-shadow: 0 0 8px rgba(231, 76, 60, 0.3);
+    }
+
+    to {
+        box-shadow: 0 0 16px rgba(231, 76, 60, 0.6);
+    }
+}

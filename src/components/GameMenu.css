@@ -1,0 +1,190 @@
+.game-menu {
+    background: rgba(48, 46, 43, 0.95);
+    padding: 32px;
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-width: 500px;
+    width: 90%;
+    margin: 40px auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.game-menu__title {
+    margin: 0;
+    color: #fff;
+    font-size: 1.8rem;
+    font-weight: 800;
+    text-align: center;
+    letter-spacing: -0.5px;
+}
+
+.game-menu__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+
+.game-menu__button {
+    flex: 1;
+    min-width: 100px;
+    padding: 16px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.game-menu__button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.game-menu__button.active {
+    background: #739552;
+    border-color: #81b64c;
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(115, 149, 82, 0.3);
+}
+
+.game-menu__bot-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.game-menu__icon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.game-menu__color-select {
+    display: flex;
+    gap: 12px;
+}
+
+.color-btn {
+    flex: 1;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.color-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.color-btn.selected {
+    border-color: #81b64c;
+    background: rgba(129, 182, 76, 0.15);
+}
+
+.game-menu__setting {
+    display: flex;
+    flex-direction: column;
+}
+
+.game-menu__setting label {
+    display: block;
+    margin-bottom: 12px;
+    color: #a0a0a0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.game-menu__slider {
+    width: 100%;
+    accent-color: #739552;
+}
+
+.game-menu__start-btn {
+    padding: 18px;
+    background: #81b64c;
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 10px;
+}
+
+.game-menu__start-btn:hover {
+    background: #95cc5e;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(129, 182, 76, 0.4);
+}
+
+.game-menu__start-btn:active {
+    transform: translateY(0);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 600px) {
+    .game-menu {
+        padding: 24px 16px;
+        width: 95%;
+        margin: 20px auto;
+        gap: 20px;
+    }
+
+    .game-menu__title {
+        font-size: 1.5rem;
+    }
+
+    .game-menu__options {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .game-menu__button {
+        min-width: 0; /* Allow shrinking */
+        padding: 12px 8px;
+        font-size: 0.85rem;
+    }
+
+    .game-menu__icon {
+        font-size: 1.5rem;
+    }
+
+    .game-menu__bot-settings {
+        padding: 16px;
+    }
+
+    .color-btn {
+        padding: 10px 4px;
+        font-size: 0.9rem;
+    }
+
+    .game-menu__start-btn {
+        padding: 16px;
+        font-size: 1.1rem;
+    }
+}
+
