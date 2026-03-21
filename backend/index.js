@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const STATS_FILE = path.join(__dirname, 'stats.json');
+const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
 
 function getStats() {
     try {
@@ -64,12 +64,7 @@ const STOCKFISH_PATH = process.env.STOCKFISH_PATH || 'stockfish';
 app.use(cors());
 app.use(bodyParser.json());
 
-// Serve static files from the React app in production
-const distPath = path.join(__dirname, '../dist');
-if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    console.log(`Serving static files from: ${distPath}`);
-}
+// Port and Stockfish configuration moved to environment variables
 
 function askStockfish(commands) {
     return new Promise((resolve, reject) => {
@@ -146,9 +141,9 @@ app.post('/eval', async (req, res) => {
     }
 });
 
-const puzzles = require('./puzzles.json');
-const polgarData = require('./polgar_puzzles.json');
-const endgames = require('./endgames.json');
+const puzzles = require('./data/puzzles.json');
+const polgarData = require('./data/polgar_puzzles.json');
+const endgames = require('./data/endgames.json');
 
 app.get('/puzzle/random', (req, res) => {
     const randomIndex = Math.floor(Math.random() * puzzles.length);

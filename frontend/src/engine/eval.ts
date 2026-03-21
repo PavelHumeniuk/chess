@@ -1,9 +1,11 @@
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
+
 // Evaluation engine utilizing the local Stockfish backend proxy
 
 // Fetch the true professional score from our local Stockfish backend
 export async function getStockfishEvaluation(fen: string): Promise<{ score: number, mate: number | null }> {
     try {
-        const response = await fetch('http://localhost:3001/eval', {
+        const response = await fetch(`${API_BASE}/eval`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fen })
@@ -37,7 +39,7 @@ export interface EndgamePosition {
 
 export async function getRandomPuzzle(): Promise<Puzzle | null> {
     try {
-        const response = await fetch('http://localhost:3001/puzzle/random');
+        const response = await fetch(`${API_BASE}/puzzle/random`);
         return await response.json();
     } catch (error) {
         console.error('Error fetching puzzle:', error);
@@ -47,7 +49,7 @@ export async function getRandomPuzzle(): Promise<Puzzle | null> {
 
 export async function getEndgamePosition(): Promise<EndgamePosition | null> {
     try {
-        const response = await fetch('http://localhost:3001/puzzle/endgame');
+        const response = await fetch(`${API_BASE}/puzzle/endgame`);
         return await response.json();
     } catch (error) {
         console.error('Error fetching endgame:', error);
@@ -58,7 +60,7 @@ export async function getEndgamePosition(): Promise<EndgamePosition | null> {
 export async function getPolgarPuzzle(type?: string): Promise<Puzzle | null> {
     try {
         const query = type ? `?type=${encodeURIComponent(type)}` : '';
-        const response = await fetch(`http://localhost:3001/puzzle/polgar${query}`);
+        const response = await fetch(`${API_BASE}/puzzle/polgar${query}`);
         return await response.json();
     } catch (error) {
         console.error('Error fetching Polgar puzzle:', error);
@@ -69,7 +71,7 @@ export async function getPolgarPuzzle(type?: string): Promise<Puzzle | null> {
 // Fetch the best move from the engine (UCI format)
 export async function getStockfishBestMove(fen: string, depthValue: number = 12, skillLevel: number = 20): Promise<string | null> {
     try {
-        const response = await fetch('http://localhost:3001/bestmove', {
+        const response = await fetch(`${API_BASE}/bestmove`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fen, depth: depthValue, skillLevel })
@@ -84,7 +86,7 @@ export async function getStockfishBestMove(fen: string, depthValue: number = 12,
 
 export async function reportPuzzleResult(id: string, success: boolean): Promise<void> {
     try {
-        await fetch('http://localhost:3001/puzzle/result', {
+        await fetch(`${API_BASE}/puzzle/result`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, success })
@@ -104,7 +106,7 @@ export interface PuzzleStats {
 
 export async function getPuzzleStats(): Promise<PuzzleStats | null> {
     try {
-        const response = await fetch('http://localhost:3001/puzzle/stats');
+        const response = await fetch(`${API_BASE}/puzzle/stats`);
         return await response.json();
     } catch (error) {
         console.error('Error fetching puzzle stats:', error);

@@ -1,85 +1,77 @@
-# Deployment Guide
+# Advanced Deployment Guide (Traefik + Docker Compose)
 
-This guide explains how to deploy the Chess application on a Linux server (e.g., Hetzner, DigitalOcean, AWS).
+This project is now structured as a monorepo with separate `frontend` and `backend` services, orchestrated by Traefik for SSL and routing.
 
-## Prerequisites
+## Architecture
 
-1.  **Node.js**: Version 20 or higher.
-2.  **Stockfish**: The chess engine must be installed and available in the system path.
-3.  **Process Manager**: (Recommended) `pm2` to keep the server running.
+- **Frontend**: React served by Nginx (Port 80 internally).
+- **Backend**: Node.js + Stockfish (Port 3001 internally).
+- **Reverse Proxy**: Traefik (Ports 80/443 externally).
 
 ---
 
-## Option 1: Manual Deployment (Linux/Ubuntu)
+## 1. DNS Setup (GoDaddy)
+Add an `A` record for your subdomain (e.g., `chess`):
+- **Type**: `A`
+- **Name**: `chess`
+- **Value**: Your Virtual Private Server (VPS) IP.
+- **TTL**: `600` (or default).
 
-### 1. Install System Dependencies
-Run the provided script to install Stockfish:
+## 2. VPS Preparation
+SSH into your server and install Docker:
 ```bash
-chmod +x scripts/install-stockfish.sh
-./scripts/install-stockfish.sh
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
 ```
 
-### 2. Prepare the Application
+Create the application directory:
 ```bash
-# Install dependencies
+mkdir -p ~/chess-app
+cd ~/chess-app
+```
+
+## 3. Configuration
+Create a `.env` file on your VPS:
+```env
+LETSENCRYPT_EMAIL=your-email@example.com
+GITHUB_USERNAME=your-github-username
+DOMAIN=chess.yourdomain.com
+```
+
+## 4. CI/CD Setup (GitHub Actions)
+Add the following Secrets to your GitHub Repository (**Settings > Secrets and variables > Actions**):
+
+| Secret | Description |
+| :--- | :--- |
+| `VPS_HOST` | Your VPS IP Address. |
+| `VPS_USER` | SSH Username (e.g., `root`). |
+| `VPS_SSH_KEY` | Your private SSH key (must correspond to `~/.ssh/authorized_keys` on VPS). |
+
+## 5. First Deployment
+1. Copy the root `docker-compose.yml` to `~/chess-app/docker-compose.yml` on your VPS.
+2. Push your code to the `main` branch.
+3. GitHub Actions will:
+   - Build and push Docker images to **GitHub Container Registry (GHCR)**.
+   - SSH into your VPS and pull the latest images.
+   - Run `docker compose up -d`.
+   - Traefik will automatically provision an SSL certificate via Let's Encrypt.
+
+---
+
+## Local Development
+Since the project is now split, you can run them separately:
+
+**Backend**:
+```bash
+cd backend
 npm install
-
-# Build the frontend
-npm run build
+npm run dev
 ```
 
-### 3. Configure Environment
-Create a `.env` file based on `.env.example`:
+**Frontend**:
 ```bash
-cp .env.example .env
+cd frontend
+npm install
+npm run dev
 ```
-Ensure `STOCKFISH_PATH` points to your stockfish binary (usually just `stockfish`).
-
-### 4. Run with PM2
-```bash
-# Install PM2 globally if not already
-npm install -g pm2
-
-# Start the server
-pm2 start server/index.js --name chess-app
-```
-
----
-
-## Option 2: Docker Deployment (Recommended)
-
-The project includes a multi-stage `Dockerfile` that packages both the Node.js environment and the Stockfish engine.
-
-### 1. Build and Run
-```bash
-# Build the image
-docker build -t chess-app .
-
-# Run the container
-docker run -d -p 3001:3001 --name chess-instance chess-app
-```
-
----
-
-## GitHub Actions CI
-
-A GitHub Action is configured in `.github/workflows/main.yml`. It automatically:
-- Installs dependencies and Stockfish.
-- Runs linter and tests.
-- Builds the project.
-
-### Suggested CD (Continuous Deployment)
-To automate deployment to your server:
-1.  Add a `DEPLOY_SSH_KEY` secret to your GitHub repository.
-2.  Update the workflow to use `appleboy/ssh-action` to pull the latest code and restart the server/container on your Hetzner instance.
-
-## Configuration & Secrets
-
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `PORT` | The port the server listens on | `3001` |
-| `STOCKFISH_PATH` | Path to Stockfish binary | `stockfish` |
-| `NODE_ENV` | Environment mode | `development` |
-
-> [!IMPORTANT]
-> Ensure port `3001` (or your custom `PORT`) is open in your server's firewall.
+Vite will proxy requests to `http://localhost:3001` if configured (check `vite.config.ts`).

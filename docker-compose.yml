@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    restart: always
+
+  frontend:
+    image: ghcr.io/${GITHUB_USERNAME}/chess-frontend:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.frontend-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.frontend.middlewares=frontend-https"
+    restart: always
+
+  backend:
+    image: ghcr.io/${GITHUB_USERNAME}/chess-backend:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.backend-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.backend.middlewares=backend-api-strip"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - ./backend-data:/app/data
+    restart: always
+
+volumes:
+  letsencrypt:
