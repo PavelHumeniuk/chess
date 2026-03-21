@@ -18,7 +18,22 @@ Add an `A` record for your subdomain (e.g., `chess`):
 - **TTL**: `600` (or default).
 
 ## 2. VPS Preparation
-SSH into your server and install Docker:
+
+### 1. SSH into your VPS
+To connect to your server, run:
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+### 2. Add your SSH Key to the VPS
+If you already created an SSH key on your Mac, you must add it to the server so GitHub Actions can deploy:
+```bash
+# Run this on your MAC (replaces YOUR_VPS_IP with the real IP)
+ssh-copy-id root@YOUR_VPS_IP
+```
+
+### 3. Install Docker
+Once logged into your VPS, run:
 ```bash
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER

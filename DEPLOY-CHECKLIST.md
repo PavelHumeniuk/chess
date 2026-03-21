@@ -2,7 +2,14 @@
 
 Follow these 5 steps to get your Chess app live on `chess.phuman.com`.
 
-### 1. DNS (GoDaddy)
+### 1. SSH into VPS
+Run this command from your terminal:
+```bash
+ssh root@YOUR_VPS_IP
+```
+_Note: If you use a different user (like `ubuntu`), replace `root` with that username._
+
+### 2. DNS (GoDaddy)
 - Go to GoDaddy DNS for `phuman.com`.
 - Add **A Record**:
   - Name: `chess`
