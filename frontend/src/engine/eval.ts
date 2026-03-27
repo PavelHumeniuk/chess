@@ -67,18 +67,14 @@ export async function getEndgamePosition(): Promise<EndgamePosition | null> {
 }
 
 export async function getPolgarPuzzle(type?: string): Promise<Puzzle | null> {
-  try {
-    const query = type ? `?type=${encodeURIComponent(type)}` : '';
-    const response = await fetch(`${API_BASE}/puzzle/polgar${query}`, { headers: authHeaders() });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to fetch Polgar puzzle');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching Polgar puzzle:', error);
-    return null;
+  const query = type ? `?type=${encodeURIComponent(type)}` : '';
+  const response = await fetch(`${API_BASE}/puzzle/polgar${query}`, { headers: authHeaders() });
+  
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Failed to fetch Polgar puzzle');
   }
+  return await response.json();
 }
 
 // ─── Stockfish ────────────────────────────────────────────────────────────────

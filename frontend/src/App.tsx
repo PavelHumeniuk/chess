@@ -125,6 +125,14 @@ function App() {
     }
   }, [history, showEval, game]);
 
+  // Auto-hide feedback after 5 seconds
+  useEffect(() => {
+    if (puzzleFeedback && !puzzleFeedback.includes('✅')) {
+      const timer = setTimeout(() => setPuzzleFeedback(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [puzzleFeedback, setPuzzleFeedback]);
+
   const handleSquareClick = useCallback(
     async (square: Square) => {
       if (game.isGameOver()) return;
@@ -224,11 +232,17 @@ function App() {
     if (polgarType) setSelectedPolgarType(polgarType);
     
     if (mode === 'polgar') {
-      const puzzle = await getPolgarPuzzle(polgarType);
-      if (puzzle) {
-        setCurrentPuzzle(puzzle);
-        loadGame(puzzle.fen);
-        setPlayerColor(game.turn());
+      try {
+        const puzzle = await getPolgarPuzzle(polgarType);
+        if (puzzle) {
+          setCurrentPuzzle(puzzle);
+          loadGame(puzzle.fen);
+          setPlayerColor(game.turn());
+        }
+      } catch (err) {
+        setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
+        setIsSetup(true); // Go back to menu
+        return;
       }
     } else if (mode === 'endgame') {
       const endgame = await getEndgamePosition();
@@ -253,13 +267,18 @@ function App() {
       }
       return;
     }
-    const puzzle = await getPolgarPuzzle(selectedPolgarType);
-    if (puzzle) {
-      setCurrentPuzzle(puzzle);
-      setPuzzleStep(0);
-      setPuzzleFeedback(null);
-      loadGame(puzzle.fen);
-      setPlayerColor(game.turn());
+    try {
+      const puzzle = await getPolgarPuzzle(selectedPolgarType);
+      if (puzzle) {
+        setCurrentPuzzle(puzzle);
+        setPuzzleStep(0);
+        setPuzzleFeedback(null);
+        loadGame(puzzle.fen);
+        setPlayerColor(game.turn());
+      }
+    } catch (err) {
+      setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
+      setIsSetup(true);
     }
   };
 
@@ -304,6 +323,11 @@ function App() {
       </header>
 
       <main className="app__main">
+        {puzzleFeedback && (
+          <div className={`puzzle-feedback ${puzzleFeedback.includes('✅') ? 'success' : (puzzleFeedback.includes('⚠️') ? 'info' : 'error')}`} style={{ position: 'relative', top: '0', marginBottom: '16px', left: 'auto', transform: 'none' }}>
+            {puzzleFeedback}
+          </div>
+        )}
         {isSetup ? (
           <GameMenu onStartGame={handleStartGame} />
         ) : (
@@ -312,11 +336,6 @@ function App() {
               <div style={{ position: 'relative' }}>
                 <GameStatus status={status} />
                 {isBotThinking && <div className="bot-thinking">🤖 Stockfish is thinking...</div>}
-                {puzzleFeedback && (
-                  <div className={`puzzle-feedback ${puzzleFeedback.includes('✅') ? 'success' : 'error'}`}>
-                    {puzzleFeedback}
-                  </div>
-                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'row' }}>
                 <EvalBar score={stockfishEval} show={showEval} />
