@@ -126,7 +126,7 @@ jobs:
             # Cleanly recreate .env from CI secrets
             echo "GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}" > .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "DOMAIN=${{ secrets.DOMAIN }}" >> .env
+            echo "DOMAIN=chess.phuman.me" >> .env
             echo "LETSENCRYPT_EMAIL=${{ secrets.LETSENCRYPT_EMAIL }}" >> .env
             echo "GITHUB_USERNAME=${{ env.OWNER_LC }}" >> .env
 
