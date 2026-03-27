@@ -53,6 +53,7 @@ jobs:
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
+    environment: VPS_HOST
     permissions:
       contents: read
       packages: write
@@ -94,6 +95,7 @@ jobs:
     needs: build-and-push
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
+    environment: VPS_HOST
     steps:
       - name: Set lower case owner name
         run: |
