@@ -11,7 +11,6 @@ import GameMenu from './components/GameMenu';
 import type { GameMode } from './components/GameMenu';
 import { 
   getStockfishEvaluation, 
-  getRandomPuzzle, 
   getPolgarPuzzle, 
   getEndgamePosition,
 } from './engine/eval';
@@ -155,7 +154,7 @@ function App() {
             return;
           }
 
-          if ((gameMode === 'puzzle' || gameMode === 'polgar') && currentPuzzle) {
+          if (gameMode === 'polgar' && currentPuzzle) {
             await handlePuzzleMove(selectedSquare, square);
             return;
           }
@@ -224,8 +223,8 @@ function App() {
     setEndgameInfo(null);
     if (polgarType) setSelectedPolgarType(polgarType);
     
-    if (mode === 'puzzle' || mode === 'polgar') {
-      const puzzle = mode === 'puzzle' ? await getRandomPuzzle() : await getPolgarPuzzle(polgarType);
+    if (mode === 'polgar') {
+      const puzzle = await getPolgarPuzzle(polgarType);
       if (puzzle) {
         setCurrentPuzzle(puzzle);
         loadGame(puzzle.fen);
@@ -254,7 +253,7 @@ function App() {
       }
       return;
     }
-    const puzzle = gameMode === 'puzzle' ? await getRandomPuzzle() : await getPolgarPuzzle(selectedPolgarType);
+    const puzzle = await getPolgarPuzzle(selectedPolgarType);
     if (puzzle) {
       setCurrentPuzzle(puzzle);
       setPuzzleStep(0);
@@ -339,7 +338,7 @@ function App() {
                       showEval={showEval}
                       onToggleEval={handleToggleEval}
                   />
-                  { (gameMode === 'puzzle' || gameMode === 'polgar' || gameMode === 'endgame') && (
+                  { (gameMode === 'polgar' || gameMode === 'endgame') && (
                     <button className="next-puzzle-btn" onClick={handleNextPuzzle}>
                       {gameMode === 'endgame' ? 'Next Endgame ➡️' : 'Next Puzzle ➡️'}
                     </button>

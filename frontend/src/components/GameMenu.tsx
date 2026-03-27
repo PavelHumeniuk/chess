@@ -1,7 +1,7 @@
 import React from 'react';
 import './GameMenu.css';
 
-export type GameMode = 'pvp' | 'bot' | 'puzzle' | 'polgar' | 'endgame';
+export type GameMode = 'pvp' | 'bot' | 'polgar' | 'endgame';
 
 interface GameMenuProps {
     onStartGame: (mode: GameMode, playerColor: 'w' | 'b', skillLevel: number, polgarType?: string) => void;
@@ -31,13 +31,6 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                 >
                     <span className="game-menu__icon">🤖</span>
                     <span>Play Bot</span>
-                </button>
-                <button 
-                    className={`game-menu__button ${mode === 'puzzle' ? 'active' : ''}`}
-                    onClick={() => setMode('puzzle')}
-                >
-                    <span className="game-menu__icon">🧩</span>
-                    <span>Lichess</span>
                 </button>
                 <button 
                     className={`game-menu__button ${mode === 'polgar' ? 'active' : ''}`}

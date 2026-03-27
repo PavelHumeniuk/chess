@@ -114,13 +114,9 @@ app.post('/bestmove', async (req, res) => {
 });
 
 // ─── Puzzle Data ─────────────────────────────────────────────────────────────
-const puzzles = require('./data/puzzles.json');
 const polgarData = require('./data/polgar_puzzles.json');
 const endgames = require('./data/endgames.json');
 
-app.get('/puzzle/random', (req, res) => {
-  res.json(puzzles[Math.floor(Math.random() * puzzles.length)]);
-});
 
 app.get('/puzzle/endgame', (req, res) => {
   res.json(endgames[Math.floor(Math.random() * endgames.length)]);

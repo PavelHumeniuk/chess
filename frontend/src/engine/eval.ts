@@ -55,15 +55,6 @@ export interface PuzzleStats {
 
 // ─── Puzzles ──────────────────────────────────────────────────────────────────
 
-export async function getRandomPuzzle(): Promise<Puzzle | null> {
-  try {
-    const response = await fetch(`${API_BASE}/puzzle/random`, { headers: authHeaders() });
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching puzzle:', error);
-    return null;
-  }
-}
 
 export async function getEndgamePosition(): Promise<EndgamePosition | null> {
   try {
