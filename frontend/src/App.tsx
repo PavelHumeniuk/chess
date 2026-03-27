@@ -94,6 +94,7 @@ function App() {
     gameMode,
     playerColor,
     skillLevel,
+    status,
     onBotMove
   });
 

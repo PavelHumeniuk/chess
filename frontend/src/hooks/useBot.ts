@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getStockfishBestMove } from '../engine/eval';
 import type { GameMode } from '../components/GameMenu';
-import type { Square, PieceType } from '../engine/types';
+import type { Square, PieceType, GameStatus } from '../engine/types';
 import type { ChessGame } from '../engine/ChessGame';
 
 interface BotProps {
@@ -10,10 +10,11 @@ interface BotProps {
   gameMode: GameMode;
   playerColor: 'w' | 'b';
   skillLevel: number;
+  status: GameStatus;
   onBotMove: (from: Square, to: Square, promotion?: PieceType) => void;
 }
 
-export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBotMove }: BotProps) {
+export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, status, onBotMove }: BotProps) {
   const [isBotThinking, setIsBotThinking] = useState(false);
 
   useEffect(() => {
@@ -23,9 +24,9 @@ export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBot
       const makeBotMove = async () => {
         setIsBotThinking(true);
         // Wait a bit for "thinking" effect
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 400));
         
-        const bestMoveUCI = await getStockfishBestMove(game.fen(), 12, skillLevel);
+        const bestMoveUCI = await getStockfishBestMove(game.fen(), 10, skillLevel);
         if (bestMoveUCI) {
           const from = bestMoveUCI.slice(0, 2) as Square;
           const to = bestMoveUCI.slice(2, 4) as Square;
@@ -37,7 +38,7 @@ export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBot
       };
       makeBotMove();
     }
-  }, [game, isSetup, gameMode, playerColor, skillLevel, isBotThinking, onBotMove]);
+  }, [game, isSetup, gameMode, playerColor, skillLevel, status, isBotThinking, onBotMove]);
 
   return { isBotThinking };
 }
