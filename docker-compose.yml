@@ -42,9 +42,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     volumes:
-      - ./backend-data:/app/data
+      - chess_db:/app/data
     restart: always
 
 volumes:
   letsencrypt:
+  chess_db:

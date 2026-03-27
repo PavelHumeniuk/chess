@@ -11,6 +11,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.4",
     "chess.js": "^1.4.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
@@ -25,7 +26,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
-    "eslint": "^9.39.4",
+    "eslint": "^10.1.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",

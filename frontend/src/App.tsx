@@ -1,5 +1,6 @@
-/* eslint-disable react-hooks/refs */
 import { useState, useCallback, useEffect } from 'react';
+import { useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
 import Board from './components/Board';
 import GameStatus from './components/GameStatus';
 import MoveHistory from './components/MoveHistory';
@@ -31,6 +32,15 @@ interface PendingPromotion {
 }
 
 function App() {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return <div className="app-loading">Loading…</div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
   const { loadState, saveState, clearState } = usePersistence();
   const initialData = loadState();
 
@@ -277,11 +287,20 @@ function App() {
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">♔ Chess</h1>
-        {!isSetup && (
-          <button className="back-to-menu-btn" onClick={() => setIsSetup(true)}>
-            ⬅️ Menu
-          </button>
-        )}
+        <div className="app__header-right">
+          {!isSetup && (
+            <button className="back-to-menu-btn" onClick={() => setIsSetup(true)}>
+              ⬅️ Menu
+            </button>
+          )}
+          <div className="user-pill">
+            {user.avatar && (
+              <img className="user-avatar" src={user.avatar} alt={user.name} referrerPolicy="no-referrer" />
+            )}
+            <span className="user-name">{user.name.split(' ')[0]}</span>
+            <button className="logout-btn" onClick={logout} title="Sign out">↩</button>
+          </div>
+        </div>
       </header>
 
       <main className="app__main">

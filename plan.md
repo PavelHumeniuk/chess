@@ -1,206 +1,256 @@
-# Chess App — Deployment Plan
+# Chess App — Google OAuth + SQLite Integration Plan
 
-## Stack
-- **Frontend**: React (built into static files, served by Node.js or nginx inside container)
-- **Backend**: Node.js (Express) with Stockfish binary
-- **Reverse proxy / SSL**: Traefik (runs as a container, auto-renews Let's Encrypt)
-- **Registry**: GitHub Container Registry (ghcr.io)
-- **CI/CD**: GitHub Actions
+## Overview
+
+Add Google OAuth 2.0 authentication and SQLite-based progress persistence to the chess training app. Each user logs in with their Google account and gets their own puzzle progress, SRS data, and stats — synced across all devices.
 
 ---
 
-## Project Structure to Generate
+## Stack Additions
 
+- **Auth**: Google OAuth 2.0 (via Google Identity Services)
+- **Frontend library**: `@react-oauth/google`
+- **Backend library**: `google-auth-library`
+- **Database**: SQLite via `better-sqlite3`
+- **Sessions**: JWT (short-lived access token stored in localStorage)
+- **Optional whitelist**: allowed emails defined in `.env` (to restrict access to yourself only)
+
+---
+
+## Database Schema
+
+Single SQLite file: `backend/data/chess.db`
+
+### Table: `users`
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  google_id TEXT UNIQUE NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT,
+  avatar TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
-chess-app/
-├── frontend/                  # React app
-│   ├── Dockerfile
-│   └── ...
-├── backend/                   # Node.js + Stockfish
-│   ├── Dockerfile
-│   ├── stockfish                # Stockfish binary (Linux x64)
-│   └── ...
-├── docker-compose.yml          # Production compose file
-├── docker-compose.dev.yml      # Local dev (optional)
-└── .github/
-    └── workflows/
-        └── deploy.yml
+
+### Table: `puzzle_progress`
+
+```sql
+CREATE TABLE IF NOT EXISTS puzzle_progress (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  puzzle_id TEXT NOT NULL,
+  bucket INTEGER DEFAULT 0,          -- SRS bucket: 0=new, 1=familiar, 2=learned
+  next_review DATE NOT NULL,
+  reps INTEGER DEFAULT 0,
+  solved INTEGER DEFAULT 0,          -- total solved count
+  failed INTEGER DEFAULT 0,          -- total failed count
+  last_seen DATETIME,
+  UNIQUE(user_id, puzzle_id)
+);
+```
+
+### Table: `sessions` (optional, if not using stateless JWT)
+
+> Prefer stateless JWT — skip this table unless you need server-side session invalidation.
+
+---
+
+## Backend Changes
+
+### New file: `backend/db.js`
+
+- Initialize SQLite connection using `better-sqlite3`
+- Run `CREATE TABLE IF NOT EXISTS` for all tables on startup
+- Export reusable prepared statements:
+  - `findOrCreateUser(googleId, email, name, avatar)`
+  - `getPuzzleProgress(userId, puzzleId)`
+  - `upsertPuzzleProgress(userId, puzzleId, bucket, nextReview, reps, solved, failed)`
+  - `getDueToday(userId)` — returns all puzzles where `next_review <= today`
+  - `getAllProgress(userId)` — returns full progress dump
+
+### New file: `backend/auth.js`
+
+- `POST /auth/google`
+  - Accepts `{ credential }` — the Google ID token from the frontend
+  - Verifies token using `google-auth-library` OAuth2Client
+  - Extracts `sub` (google_id), `email`, `name`, `picture`
+  - If `ALLOWED_EMAILS` is set in `.env`, check that email is in the list — return 403 if not
+  - Call `findOrCreateUser(...)` to get or create the user record
+  - Sign and return a JWT: `{ userId, email, name, avatar }` with expiry `30d`
+
+- `GET /auth/me`
+  - Requires JWT in `Authorization: Bearer ...` header
+  - Returns current user info or 401
+
+### New middleware: `backend/middleware/requireAuth.js`
+
+- Extract JWT from `Authorization` header
+- Verify with `jsonwebtoken`
+- Attach `req.user = { id, email, name }` to the request
+- Return 401 if missing or invalid
+
+### Modified: puzzle progress endpoints
+
+All existing puzzle progress routes should now:
+- Use `requireAuth` middleware
+- Scope all DB queries to `req.user.id`
+
+New endpoints:
+
+- `GET /api/progress/due` — returns puzzles due today for the current user
+- `POST /api/progress/:puzzleId` — upsert progress after solving a puzzle
+  - Body: `{ bucket, nextReview, solved, failed, reps }`
+- `GET /api/progress/all` — full progress dump (for stats page)
+
+### Environment variables to add to `.env`
+
+```env
+JWT_SECRET=some_long_random_string
+GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+ALLOWED_EMAILS=your@gmail.com,friend@gmail.com   # optional whitelist
 ```
 
 ---
 
-## Files to Generate
+## Frontend Changes
 
-### 1. `backend/Dockerfile`
+### New file: `src/context/AuthContext.jsx`
 
-- Base image: `node:20-alpine`
-- Copy Stockfish binary into the image, set executable permissions (`chmod +x`)
-- Install npm dependencies
-- Expose port `3001`
-- Start with `node server.js`
+- Wrap the app in `GoogleOAuthProvider` with `clientId` from env
+- Store JWT in `localStorage` under key `chess_token`
+- Expose: `user`, `login(credential)`, `logout()`
+- On mount: if token exists, call `GET /auth/me` to restore session
+- If 401 — clear token and show login screen
 
-### 2. `frontend/Dockerfile`
+### New file: `src/pages/LoginPage.jsx`
 
-- **Stage 1** (build): `node:20-alpine` — run `npm run build`
-- **Stage 2** (serve): `nginx:alpine` — copy `/dist` from stage 1 into nginx html folder
-- Expose port `80`
-- No environment variables needed at runtime (API calls go to `/api/` path)
+- Centered layout with app name
+- Single `GoogleLogin` button from `@react-oauth/google`
+- On success: call `POST /auth/google` with the credential, store returned JWT
+- On failure: show error message
 
-> The React app should proxy `/api/` requests to the backend. In production this is handled by Traefik routing rules, not Vite proxy. Make sure `fetch('/api/bestmove')` uses a relative path.
+### Modified: `src/App.jsx`
 
-### 3. `docker-compose.yml`
+- If `user` is null — render `<LoginPage />`
+- If `user` exists — render the app as normal
+- Add user avatar + name + logout button in the top corner
 
-Services:
+### Modified: puzzle progress logic
 
-**traefik**
-- Image: `traefik:v3.0`
-- Command flags:
-  - `--providers.docker=true`
-  - `--providers.docker.exposedbydefault=false`
-  - `--entrypoints.web.address=:80`
-  - `--entrypoints.websecure.address=:443`
-  - `--certificatesresolvers.letsencrypt.acme.email=phuman911@gmail.com`
-  - `--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json`
-  - `--certificatesresolvers.letsencrypt.acme.tlschallenge=true`
-- Ports: `80:80`, `443:443`
-- Volumes:
-  - `/var/run/docker.sock:/var/run/docker.sock:ro`
-  - `letsencrypt:/letsencrypt`
-- Restart: `always`
+- All progress read/write should go through the new API endpoints instead of localStorage
+- On app load: fetch `GET /api/progress/due` to populate today's review queue
+- After solving a puzzle: `POST /api/progress/:puzzleId` with updated SRS data
 
-**frontend**
-- Image: `ghcr.io/PavelHumeniuk/chess-frontend:latest`
-- Labels:
-  - `traefik.enable=true`
-  - `traefik.http.routers.frontend.rule=Host('chess.phuman.com')`
-  - `traefik.http.routers.frontend.entrypoints=websecure`
-  - `traefik.http.routers.frontend.tls.certresolver=letsencrypt`
-  - HTTP → HTTPS redirect middleware
-- Restart: `always`
+### Environment variable
 
-**backend**
-- Image: `ghcr.io/PavelHumeniuk/chess-backend:latest`
-- Labels:
-  - `traefik.enable=true`
-  - `traefik.http.routers.backend.rule=Host('chess.phuman.com') && PathPrefix('/api')`
-  - `traefik.http.routers.backend.entrypoints=websecure`
-  - `traefik.http.routers.backend.tls.certresolver=letsencrypt`
-- Environment:
-  - `NODE_ENV=production`
-  - `PORT=3001`
-- Restart: `always`
+```env
+VITE_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+```
 
-Volumes:
-- `letsencrypt:` (named volume for Traefik SSL certs)
+---
 
-Networks:
-- Single shared bridge network for all services
+## Docker Changes
 
-### 4. `.github/workflows/deploy.yml`
+### `backend/Dockerfile`
 
-Trigger: push to `main` branch
+- Add volume mount point for SQLite file: `/app/data`
+- The `chess.db` file lives in this directory
 
-Jobs:
+### `docker-compose.yml`
 
-**build-and-push**
-- Runs on: `ubuntu-latest`
-- Steps:
-  1. Checkout repo
-  2. Log in to `ghcr.io` using `GITHUB_TOKEN`
-  3. Build and push `chess-frontend` image with tag `latest`
-  4. Build and push `chess-backend` image with tag `latest`
+Add named volume for the database so it persists across container restarts and deploys:
 
-**deploy**
-- Depends on: `build-and-push`
-- Runs on: `ubuntu-latest`
-- Steps:
-  1. SSH into VPS using secret `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
-  2. On VPS run:
-     ```bash
-     docker compose pull
-     docker compose up -d
-     docker image prune -f
-     ```
+```yaml
+volumes:
+  chess_db:
 
-### 5. GitHub Actions Secrets to Configure
+services:
+  backend:
+    volumes:
+      - chess_db:/app/data
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS}
+```
 
-| Secret | Value |
-|---|---|
-| `VPS_HOST` | Your VPS IP address |
-| `VPS_USER` | SSH user (e.g. `root` or `ubuntu`) |
-| `VPS_SSH_KEY` | Private SSH key (the one whose public key is on the VPS) |
-
-> `GITHUB_TOKEN` is automatic — no need to add it manually.
+Add a `.env` file on the VPS at `~/chess-app/.env` with the secrets. GitHub Actions should NOT commit secrets — pass them via the `.env` file on the server.
 
 ---
 
 ## What You Need to Do Manually (in order)
 
-### Step 1 — GoDaddy: add DNS record
+### Step 1 — Google Cloud Console: create OAuth app
 
-Go to GoDaddy → DNS Management → Add record:
-```
-Type:  A
-Name:  chess
-Value: YOUR_VPS_IP
-TTL:   600
-```
-Wait 5–30 minutes for propagation.
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Create a new project (e.g. "Chess App")
+3. Go to **APIs & Services → OAuth consent screen**
+   - User type: **External**
+   - Fill in app name, your email
+   - No need to add scopes beyond the defaults
+   - Add your Gmail as a test user
+4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - Authorized JavaScript origins:
+     - `https://chess.domain.com`
+     - `http://localhost:5173` (for local dev)
+   - Authorized redirect URIs: leave empty (not needed for Google Identity Services)
+5. Copy the **Client ID** — you'll need it in the next steps
 
-### Step 2 — VPS: install Docker
+### Step 2 — Add Client ID to your project
 
-SSH into your VPS and run:
+- Add to `frontend/.env`:
+  ```
+  VITE_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+  ```
+- Add to `backend/.env`:
+  ```
+  GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+  JWT_SECRET=generate_a_random_64_char_string
+  ALLOWED_EMAILS=your@gmail.com
+  ```
+
+### Step 3 — Add `.env` to VPS
+
+SSH into your VPS and create the env file:
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker
+nano ~/chess-app/.env
+```
+Paste the backend env variables. This file is never committed to git.
+
+### Step 4 — Add GitHub Actions secret for env (optional)
+
+If you want GitHub Actions to write the `.env` file automatically on deploy, add a `ENV_FILE` secret in GitHub with the full contents of the `.env` file, then in your deploy workflow:
+
+```yaml
+- name: Write .env file
+  run: echo "${{ secrets.ENV_FILE }}" > ~/chess-app/.env
 ```
 
-Verify:
-```bash
-docker --version
-docker compose version
-```
+### Step 5 — Deploy and test
 
-### Step 3 — VPS: create app directory
-
-```bash
-mkdir -p ~/chess-app
-cd ~/chess-app
-```
-
-Copy `docker-compose.yml` to this folder (or clone your repo here).
-
-### Step 4 — GitHub: configure secrets
-
-Go to your repo → Settings → Secrets and variables → Actions → add:
-- `VPS_HOST`
-- `VPS_USER`
-- `VPS_SSH_KEY`
-
-### Step 5 — GitHub: enable GitHub Container Registry
-
-Go to your GitHub profile → Settings → Packages → make sure container visibility is set to **Public** (or configure pull credentials on VPS for private).
-
-### Step 6 — First deploy
-
-Push to `main` branch. GitHub Actions will:
-1. Build both Docker images
-2. Push them to `ghcr.io`
-3. SSH into VPS and run `docker compose up -d`
-4. Traefik will automatically request an SSL certificate from Let's Encrypt
-
-### Step 7 — Verify
-
-Open `https://chess.phuman.com` — the app should be live with a valid SSL cert.
+1. Push to `main` — GitHub Actions builds and deploys
+2. Open `https://chess.domain.com`
+3. You should see the login page with a Google button
+4. Sign in — you should land on the app
+5. Solve a puzzle — progress should persist after refresh and on mobile
 
 ---
 
-## Every Future Deploy
+## Local Development Flow
 
-Just push to `main`. GitHub Actions handles everything automatically.
+```bash
+# Backend
+cd backend
+cp .env.example .env   # fill in your Google Client ID and JWT secret
+node server.js
 
+# Frontend
+cd frontend
+cp .env.example .env   # fill in VITE_GOOGLE_CLIENT_ID
+npm run dev
 ```
-git push origin main
-# → builds images → pushes to ghcr.io → SSHes into VPS → docker compose up -d
-```
+
+SQLite file will be created automatically at `backend/data/chess.db` on first run.

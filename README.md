@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+# ♟️ Chess Training Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-stack chess training application featuring SRS-based (Spaced Repetition System) puzzle learning, interactive boards, and real-time stockfish-powered analysis.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🏗️ Project Structure
 
-## React Compiler
+This project is a monorepo consisting of:
+-   **`/frontend`**: React + Vite application with TypeScript and Tailwind (or CSS).
+-   **`/backend`**: Node.js/Express server providing chess puzzles and Stockfish analysis.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🚀 Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+You can now run shortcuts from the root directory to manage both services simultaneously.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Install all dependencies
+```bash
+npm run install:all
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. Run both services in development mode
+This will start the frontend on `localhost:5173` and the backend on `localhost:3001` using `concurrently`.
+```bash
+npm run dev
 ```
+
+### 💡 Individual Service Commands
+If you need to run only one part of the app:
+- **Frontend Only**: `npm run dev:frontend`
+- **Backend Only**: `npm run dev:backend`
+- **Tests (Frontend)**: `npm run test:frontend`
+- **Lint (Frontend)**: `npm run lint:frontend`
+
+---
+
+## 🌐 Deployment (Docker + Traefik)
+
+This project is configured for automated deployment to a VPS via GitHub Actions and Docker.
+
+- **Checklist**: See [DEPLOY-CHECKLIST.md](./DEPLOY-CHECKLIST.md) for quick setup.
+- **Detailed Guide**: See [DEPLOY.md](./DEPLOY.md) for advanced configuration.
+
+### Deployment Workflow:
+1.  **CI**: Every push to `main` triggers `.github/workflows/main.yml` to lint, test, and build the frontend.
+2.  **CD**: On success, `.github/workflows/deploy.yml` builds Docker images, pushes them to GHCR, and redeploys on your VPS via SSH.
+
+---
+
+## 📝 Planned Features (Current Roadmap)
+-   [ ] **Google OAuth 2.0**: Log in to sync your progress across devices.
+-   [ ] **SQLite Persistence**: User-specific puzzle progress and stats stored in a persistent database.
+-   [ ] **Comprehensive Stats**: Track your learning progress with deep analytics.
+
+Refer to [plan.md](./plan.md) for the detailed implementation steps of the upcoming auth and database features.

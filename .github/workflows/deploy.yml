@@ -35,6 +35,8 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/chess-frontend:latest
           labels: ${{ steps.meta-frontend.outputs.labels }}
+          build-args: |
+            VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Extract metadata (tags, labels) for Backend
         id: meta-backend
@@ -62,6 +64,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/chess-app
+            # Cleanly recreate .env from CI secrets
+            echo "GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}" > .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "DOMAIN=${{ secrets.DOMAIN }}" >> .env
+            echo "LETSENCRYPT_EMAIL=${{ secrets.LETSENCRYPT_EMAIL }}" >> .env
+            echo "GITHUB_USERNAME=${{ github.repository_owner }}" >> .env
+
             docker compose pull
             docker compose up -d
             docker image prune -f
