@@ -1,6 +1,15 @@
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
+
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 1, name: 'Test User', email: 'test@example.com' },
+    loading: false,
+    logout: vi.fn(),
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 beforeEach(() => {
     localStorage.clear();

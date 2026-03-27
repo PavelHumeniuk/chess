@@ -9,6 +9,11 @@
     "dev": "npx concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build:frontend": "npm run build --prefix frontend",
     "test:frontend": "npm run test --prefix frontend",
-    "lint:frontend": "npm run lint --prefix frontend"
+    "lint:frontend": "npm run lint --prefix frontend",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
   }
 }

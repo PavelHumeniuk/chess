@@ -4,6 +4,15 @@ import App from '../App';
 import * as evalEngine from '../engine/eval';
 
 // Mock the evaluation engine
+vi.mock('../context/AuthContext', () => ({
+    useAuth: () => ({
+        user: { id: 1, name: 'Test User', email: 'test@example.com' },
+        loading: false,
+        logout: vi.fn(),
+    }),
+    AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('../engine/eval', () => ({
     getStockfishEvaluation: vi.fn(() => Promise.resolve({ score: 10, mate: null })),
     getRandomPuzzle: vi.fn(() => Promise.resolve({
