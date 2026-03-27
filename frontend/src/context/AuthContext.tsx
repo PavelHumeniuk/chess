@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
@@ -21,13 +22,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !!localStorage.getItem(TOKEN_KEY));
 
   // On mount, restore session from stored token
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      setLoading(false);
       return;
     }
     fetch(`${API_BASE}/auth/me`, {
@@ -70,9 +70,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
-}
-
-/** Returns the stored JWT for use in API calls */
-export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
 }
