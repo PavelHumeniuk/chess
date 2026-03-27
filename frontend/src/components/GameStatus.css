@@ -63,3 +63,19 @@
         box-shadow: 0 0 16px rgba(231, 76, 60, 0.6);
     }
 }
+@media (max-width: 600px) {
+    .game-status {
+        padding: 8px 16px;
+        min-width: 140px;
+        gap: 8px;
+    }
+
+    .game-status__text {
+        font-size: 0.9rem;
+    }
+
+    .game-status__turn-dot {
+        width: 10px;
+        height: 10px;
+    }
+}

@@ -47,3 +47,28 @@
     color: #a0a0a0;
     font-family: 'Inter', system-ui, sans-serif;
 }
+@media (max-width: 600px) {
+    .board {
+        width: min(92vmin, 560px);
+        height: min(92vmin, 560px);
+    }
+
+    .board-wrapper {
+        padding-left: 16px;
+        padding-bottom: 16px;
+    }
+
+    .board-labels--files {
+        left: 16px;
+        height: 16px;
+    }
+
+    .board-labels--ranks {
+        width: 16px;
+        bottom: 16px;
+    }
+
+    .board-label {
+        font-size: 0.6rem;
+    }
+}

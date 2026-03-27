@@ -9,12 +9,13 @@
 }
 
 .app__header {
-  padding: 32px 40px 12px;
+  padding: 16px 20px 8px;
   width: 100%;
   max-width: 1200px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .back-to-menu-btn {
@@ -327,58 +328,68 @@
     background: rgba(129, 182, 76, 0.15);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* Responsive Improvements */
+@media (max-width: 900px) {
   .app__game-area {
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
+    width: 100%;
   }
 
   .app__sidebar {
     padding-top: 0;
     width: 100%;
-    max-width: min(90vmin, 560px);
+    max-width: min(95vmin, 600px);
   }
 
-  .move-history {
+  .app__board-section {
     width: 100%;
   }
 }
 
 @media (max-width: 600px) {
   .app__header {
-    padding: 20px 20px 8px;
+    padding: 12px 12px;
   }
 
   .app__title {
-    font-size: 1.4rem;
+    font-size: 1.1rem;
   }
 
   .back-to-menu-btn {
-    padding: 6px 12px;
-    font-size: 0.9rem;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .user-pill {
+    padding: 3px 6px 3px 3px !important;
+    gap: 4px;
+  }
+
+  .user-name {
+    display: none;
   }
 
   .app__main {
-    padding: 8px 12px;
+    padding: 8px 8px;
   }
 
   .app__game-area {
-    gap: 16px;
-  }
-
-  .app__board-section {
     gap: 12px;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr !important; /* Stack on very small screens */
+  .app__board-section {
     gap: 10px;
   }
 
-  .stat-item.highlight {
-    grid-column: auto;
+  .statistics-card {
+    padding: 12px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
   }
 
   .stat-item {
@@ -392,14 +403,23 @@
   .forecast-grid {
     gap: 4px;
   }
-  
+
   .forecast-item {
-    padding: 6px 2px;
+    padding: 8px 2px;
   }
 
   .forecast-count {
-      font-size: 0.75rem;
+    font-size: 0.8rem;
   }
+}
+
+@media (max-height: 700px) and (max-width: 600px) {
+    .app__header {
+        padding: 8px 12px;
+    }
+    .app__title {
+        font-size: 1rem;
+    }
 }
 
 /* ─── Login Page ─────────────────────────────────────────────────────────────── */
