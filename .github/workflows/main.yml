@@ -103,6 +103,15 @@ jobs:
         env:
           OWNER: '${{ github.repository_owner }}'
 
+      - name: Create app directory and copy files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "~/chess-app"
+
       - name: SSH into VPS and deploy
         uses: appleboy/ssh-action@master
         with:
