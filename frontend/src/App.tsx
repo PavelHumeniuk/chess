@@ -325,7 +325,7 @@ function App() {
 
       <main className="app__main">
         {puzzleFeedback && (
-          <div className={`puzzle-feedback ${puzzleFeedback.includes('✅') ? 'success' : (puzzleFeedback.includes('⚠️') ? 'info' : 'error')}`} style={{ position: 'relative', top: '0', marginBottom: '16px', left: 'auto', transform: 'none' }}>
+          <div className={`puzzle-feedback ${puzzleFeedback.includes('✅') ? 'success' : (puzzleFeedback.includes('⚠️') ? 'info' : 'error')}`}>
             {puzzleFeedback}
           </div>
         )}

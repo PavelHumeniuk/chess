@@ -49,9 +49,12 @@
 .app__main {
   flex: 1;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   padding: 16px 24px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .app__game-area {
@@ -96,16 +99,23 @@
 }
 
 .puzzle-feedback {
-    position: absolute;
-    top: -40px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 24px;
-    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 10px;
     font-weight: 700;
-    white-space: nowrap;
-    z-index: 10;
+    margin-bottom: 20px;
+    z-index: 100;
     transition: all 0.3s;
+    width: fit-content;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    animation: scale-in 0.3s ease-out;
+}
+
+@keyframes scale-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 .puzzle-feedback.success {
@@ -118,6 +128,12 @@
     background: #e74c3c;
     color: #fff;
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
+.puzzle-feedback.info {
+    background: #f39c12;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
 }
 
 .app__controls-container {
