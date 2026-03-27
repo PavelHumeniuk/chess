@@ -32,15 +32,6 @@ interface PendingPromotion {
 }
 
 function App() {
-  const { user, loading, logout } = useAuth();
-
-  if (loading) {
-    return <div className="app-loading">Loading…</div>;
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
   const { loadState, saveState, clearState } = usePersistence();
   const initialData = loadState();
 
@@ -282,6 +273,16 @@ function App() {
   const handleToggleEval = useCallback(() => {
     setShowEval((prev) => !prev);
   }, []);
+
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return <div className="app-loading">Loading…</div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="app">
