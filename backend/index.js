@@ -41,12 +41,26 @@ function askStockfish(commands) {
       console.error(`stderr: ${data}`);
     });
 
-    stockfish.on('close', () => resolve(output));
-    stockfish.on('error', reject);
+    stockfish.on('close', (code) => {
+      if (code !== 0 && !output.includes('bestmove')) {
+        console.error(`Stockfish exited with code ${code}`);
+      }
+      resolve(output);
+    });
 
-    commands.forEach(cmd => stockfish.stdin.write(`${cmd}\n`));
-    if (!commands.some(c => c.startsWith('go'))) {
-      stockfish.stdin.write('go depth 10\n');
+    stockfish.on('error', (err) => {
+      console.error(`Failed to start Stockfish at "${STOCKFISH_PATH}":`, err.message);
+      reject(new Error(`Stockfish path error: ${err.message}`));
+    });
+
+    try {
+      commands.forEach(cmd => stockfish.stdin.write(`${cmd}\n`));
+      if (!commands.some(c => c.startsWith('go'))) {
+        stockfish.stdin.write('go depth 10\n');
+      }
+    } catch (err) {
+      console.error('Error writing to Stockfish stdin:', err.message);
+      reject(err);
     }
   });
 }
