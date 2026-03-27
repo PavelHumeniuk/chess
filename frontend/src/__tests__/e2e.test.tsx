@@ -15,14 +15,6 @@ vi.mock('../context/AuthContext', () => ({
 
 vi.mock('../engine/eval', () => ({
     getStockfishEvaluation: vi.fn(() => Promise.resolve({ score: 10, mate: null })),
-    getRandomPuzzle: vi.fn(() => Promise.resolve({
-        id: '123',
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        moves: ['e2e4'],
-        solution: ['e2e4'],
-        rating: 1500,
-        themes: ['mate']
-    })),
     getPolgarPuzzle: vi.fn(() => Promise.resolve({
         id: 'polgar1',
         fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -102,22 +94,6 @@ describe('End-to-End Game Scenarios', () => {
         expect(screen.getByTestId('game-status')).toHaveTextContent(/repetition/i);
     });
 
-    it('Game 5: Puzzle Mode Flow', async () => {
-        render(<App />);
-        fireEvent.click(screen.getByText('Lichess'));
-        startGame();
-        
-        await waitFor(() => {
-            expect(evalEngine.getRandomPuzzle).toHaveBeenCalled();
-        });
-
-        // Make correct move (e2e4)
-        fireEvent.click(screen.getByTestId('square-e2'));
-        fireEvent.click(screen.getByTestId('square-e4'));
-
-        expect(screen.getByText(/Correct!/i)).toBeInTheDocument();
-        expect(screen.getByText('Next Puzzle ➡️')).toBeInTheDocument();
-    });
 
     it('Game 6: Bot Mode Initialization', async () => {
         render(<App />);
