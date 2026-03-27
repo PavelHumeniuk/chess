@@ -97,6 +97,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: VPS_HOST
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set lower case owner name
         run: |
           echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
