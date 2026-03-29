@@ -3,6 +3,30 @@ const jwt = require('jsonwebtoken');
 const { findOrCreateUser } = require('./db');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const COOKIE_NAME = 'chess_token';
+
+function readCookieToken(req) {
+  const cookieHeader = req.headers.cookie || '';
+  const cookies = cookieHeader.split(';');
+  for (const item of cookies) {
+    const [rawName, ...valueParts] = item.trim().split('=');
+    if (rawName === COOKIE_NAME) {
+      return decodeURIComponent(valueParts.join('='));
+    }
+  }
+  return null;
+}
+
+function setAuthCookie(res, token) {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
 
 /**
  * POST /auth/google
@@ -32,7 +56,8 @@ async function googleLogin(req, res) {
       { expiresIn: '30d' }
     );
 
-    return res.json({ token, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } });
+    setAuthCookie(res, token);
+    return res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } });
   } catch (err) {
     console.error('Google auth error:', err);
     return res.status(401).json({ error: 'Invalid Google token' });
@@ -45,11 +70,12 @@ async function googleLogin(req, res) {
  */
 function getMe(req, res) {
   const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const token = bearer || readCookieToken(req);
+  if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
     const user = jwt.verify(token, process.env.JWT_SECRET);
     return res.json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } });
@@ -58,4 +84,15 @@ function getMe(req, res) {
   }
 }
 
-module.exports = { googleLogin, getMe };
+function logout(_req, res) {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+  return res.json({ ok: true });
+}
+
+module.exports = { googleLogin, getMe, logout, readCookieToken };

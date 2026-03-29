@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "lint": "node --check index.js && node --check auth.js && node --check db.js && node --check middleware/requireAuth.js",
+    "test": "vitest run",
+    "smoke": "node -e \"require('./index'); console.log('backend smoke ok')\""
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -17,6 +20,8 @@
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "supertest": "^7.1.4",
+    "vitest": "^4.1.0"
   }
 }

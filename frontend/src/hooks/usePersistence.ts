@@ -22,7 +22,13 @@ export function usePersistence() {
 
   const loadState = useCallback((): GameState | null => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    try {
+      return JSON.parse(saved) as GameState;
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
   }, []);
 
   const clearState = useCallback(() => {

@@ -2,7 +2,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
-const TOKEN_KEY = 'chess_token';
 
 export interface AuthUser {
   id: number;
@@ -22,20 +21,16 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => !!localStorage.getItem(TOKEN_KEY));
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // On mount, restore session from stored token
+  // On mount, restore session from auth cookie.
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      return;
-    }
     fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(({ user }) => setUser(user))
-      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
@@ -43,19 +38,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await fetch(`${API_BASE}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ credential }),
     });
     if (!res.ok) {
       const { error } = await res.json();
       throw new Error(error || 'Login failed');
     }
-    const { token, user } = await res.json();
-    localStorage.setItem(TOKEN_KEY, token);
+    const { user } = await res.json();
     setUser(user);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+    fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {
+      // Local state still resets even if request fails.
+    });
     setUser(null);
   }, []);
 

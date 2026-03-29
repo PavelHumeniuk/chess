@@ -19,13 +19,6 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
             
             <div className="game-menu__options">
                 <button 
-                    className={`game-menu__button ${mode === 'pvp' ? 'active' : ''}`}
-                    onClick={() => setMode('pvp')}
-                >
-                    <span className="game-menu__icon">👥</span>
-                    <span>Play 2P</span>
-                </button>
-                <button 
                     className={`game-menu__button ${mode === 'bot' ? 'active' : ''}`}
                     onClick={() => setMode('bot')}
                 >

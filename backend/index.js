@@ -4,7 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { spawn } = require('child_process');
 
-const { googleLogin, getMe } = require('./auth');
+const { googleLogin, getMe, logout } = require('./auth');
 const requireAuth = require('./middleware/requireAuth');
 const {
   getPuzzleProgress,
@@ -16,19 +16,82 @@ const {
 const app = express();
 const port = process.env.PORT || 3001;
 const STOCKFISH_PATH = process.env.STOCKFISH_PATH || 'stockfish';
+const STOCKFISH_TIMEOUT_MS = Number(process.env.STOCKFISH_TIMEOUT_MS || 8000);
+const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(v => v.trim())
+  .filter(Boolean);
+const CORS_ORIGINS = ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : DEFAULT_CORS_ORIGINS;
+const computeLimiterHits = new Map();
 
-app.use(cors());
+function parseIntegerInRange(value, fallback, min, max) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function createComputeRateLimiter(limit = 40, windowMs = 60_000) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const existing = computeLimiterHits.get(key);
+
+    if (!existing || now - existing.windowStart > windowMs) {
+      computeLimiterHits.set(key, { count: 1, windowStart: now });
+      return next();
+    }
+
+    existing.count += 1;
+    if (existing.count > limit) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+
+    return next();
+  };
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    // Non-browser clients may not send origin.
+    if (!origin) return callback(null, true);
+    if (CORS_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(bodyParser.json());
 
 // ─── Auth Routes ─────────────────────────────────────────────────────────────
 app.post('/auth/google', googleLogin);
 app.get('/auth/me', getMe);
+app.post('/auth/logout', logout);
 
 // ─── Stockfish helpers ────────────────────────────────────────────────────────
-function askStockfish(commands) {
+function askStockfish(commands, timeoutMs = STOCKFISH_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const stockfish = spawn(STOCKFISH_PATH);
     let output = '';
+    let settled = false;
+
+    const finish = (err, result = '') => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      if (!stockfish.killed) {
+        stockfish.kill('SIGTERM');
+      }
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(result);
+    };
+
+    const timeoutId = setTimeout(() => {
+      finish(new Error('Stockfish request timed out'));
+    }, timeoutMs);
 
     stockfish.stdout.on('data', (data) => {
       output += data.toString();
@@ -42,15 +105,17 @@ function askStockfish(commands) {
     });
 
     stockfish.on('close', (code) => {
+      if (settled) return;
       if (code !== 0 && !output.includes('bestmove')) {
         console.error(`Stockfish exited with code ${code}`);
+        return finish(new Error(`Stockfish exited with code ${code}`));
       }
-      resolve(output);
+      finish(null, output);
     });
 
     stockfish.on('error', (err) => {
       console.error(`Failed to start Stockfish at "${STOCKFISH_PATH}":`, err.message);
-      reject(new Error(`Stockfish path error: ${err.message}`));
+      finish(new Error(`Stockfish path error: ${err.message}`));
     });
 
     try {
@@ -60,7 +125,7 @@ function askStockfish(commands) {
       }
     } catch (err) {
       console.error('Error writing to Stockfish stdin:', err.message);
-      reject(err);
+      finish(err);
     }
   });
 }
@@ -84,11 +149,14 @@ function parseBestMove(output) {
 }
 
 // ─── Stockfish API ────────────────────────────────────────────────────────────
-app.post('/eval', async (req, res) => {
+const computeRateLimiter = createComputeRateLimiter();
+
+app.post('/eval', computeRateLimiter, async (req, res) => {
   const { fen } = req.body;
+  const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
   if (!fen) return res.status(400).json({ error: 'FEN is required' });
   try {
-    const output = await askStockfish(['uci', `position fen ${fen}`, 'go depth 12']);
+    const output = await askStockfish(['uci', `position fen ${fen}`, `go depth ${depth}`]);
     res.json(parseEval(output));
   } catch (error) {
     console.error(error);
@@ -96,8 +164,10 @@ app.post('/eval', async (req, res) => {
   }
 });
 
-app.post('/bestmove', async (req, res) => {
-  const { fen, depth = 12, skillLevel = 20 } = req.body;
+app.post('/bestmove', computeRateLimiter, async (req, res) => {
+  const { fen } = req.body;
+  const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
+  const skillLevel = parseIntegerInRange(req.body?.skillLevel, 20, 0, 20);
   if (!fen) return res.status(400).json({ error: 'FEN is required' });
   try {
     const output = await askStockfish([
@@ -145,7 +215,7 @@ function calcSRS(existing, isSuccess) {
 
 // ─── Polgar Puzzles ───────────────────────────────────────────────────────────
 app.get('/puzzle/polgar', requireAuth, (req, res) => {
-  const { type } = req.query;
+  const type = typeof req.query.type === 'string' ? req.query.type : '';
   const userId = req.user.id;
 
   let filtered = polgarData.problems;
@@ -182,7 +252,9 @@ app.get('/puzzle/polgar', requireAuth, (req, res) => {
     categoryRemaining: filtered.length,
     categoryTotal: type === 'Review Due'
       ? filtered.length
-      : polgarData.problems.filter(prob => prob.type.toLowerCase().includes(type.toLowerCase())).length,
+      : type
+        ? polgarData.problems.filter(prob => prob.type.toLowerCase().includes(type.toLowerCase())).length
+        : polgarData.problems.length,
   });
 });
 
@@ -200,12 +272,7 @@ app.get('/api/progress/all', requireAuth, (req, res) => {
   res.json(all);
 });
 
-// POST /api/progress/:puzzleId — record a puzzle result and update SRS
-app.post('/api/progress/:puzzleId', requireAuth, (req, res) => {
-  const { puzzleId } = req.params;
-  const { success } = req.body;
-  const userId = req.user.id;
-
+function persistProgressResult(userId, puzzleId, success) {
   const existing = getPuzzleProgress.get(userId, puzzleId);
   const { interval, ease, attempts, successes, nextDue } = calcSRS(existing, !!success);
 
@@ -220,6 +287,16 @@ app.post('/api/progress/:puzzleId', requireAuth, (req, res) => {
     lastSeen: new Date().toISOString(),
   });
 
+  return { nextDue };
+}
+
+// POST /api/progress/:puzzleId — record a puzzle result and update SRS
+app.post('/api/progress/:puzzleId', requireAuth, (req, res) => {
+  const { puzzleId } = req.params;
+  const { success } = req.body;
+  const userId = req.user.id;
+
+  const { nextDue } = persistProgressResult(userId, puzzleId, success);
   res.json({ ok: true, nextDue });
 });
 
@@ -254,24 +331,15 @@ app.post('/puzzle/result', requireAuth, (req, res) => {
   const { id, success } = req.body;
   const userId = req.user.id;
 
-  const existing = getPuzzleProgress.get(userId, id);
-  const { interval, ease, attempts, successes, nextDue } = calcSRS(existing, !!success);
-
-  upsertPuzzleProgress.run({
-    userId,
-    puzzleId: id,
-    interval,
-    ease,
-    attempts,
-    successes,
-    nextDue,
-    lastSeen: new Date().toISOString(),
-  });
-
+  persistProgressResult(userId, id, success);
   res.json({ ok: true });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(port, () => {
-  console.log(`Chess backend listening at http://localhost:${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Chess backend listening at http://localhost:${port}`);
+  });
+}
+
+module.exports = app;

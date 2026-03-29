@@ -1,10 +1,23 @@
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('chess_token');
-  return token
-    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-    : { 'Content-Type': 'application/json' };
+  return { 'Content-Type': 'application/json' };
+}
+
+async function parseJsonOrThrow(response: Response) {
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const message = typeof data === 'object' && data && 'error' in data
+      ? String((data as { error?: string }).error || 'Request failed')
+      : `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+  return data;
 }
 
 // ─── Evaluation ───────────────────────────────────────────────────────────────
@@ -14,10 +27,11 @@ export async function getStockfishEvaluation(fen: string): Promise<{ score: numb
     const response = await fetch(`${API_BASE}/eval`, {
       method: 'POST',
       headers: authHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ fen }),
     });
-    const data = await response.json();
-    return { score: data.score, mate: data.mate };
+    const data = await parseJsonOrThrow(response) as { score?: number; mate?: number | null };
+    return { score: data.score ?? 0, mate: data.mate ?? null };
   } catch (error) {
     console.error('Error fetching Stockfish eval:', error);
     return { score: 0, mate: null };
@@ -58,8 +72,8 @@ export interface PuzzleStats {
 
 export async function getEndgamePosition(): Promise<EndgamePosition | null> {
   try {
-    const response = await fetch(`${API_BASE}/puzzle/endgame`, { headers: authHeaders() });
-    return await response.json();
+    const response = await fetch(`${API_BASE}/puzzle/endgame`, { headers: authHeaders(), credentials: 'include' });
+    return await parseJsonOrThrow(response) as EndgamePosition;
   } catch (error) {
     console.error('Error fetching endgame:', error);
     return null;
@@ -68,13 +82,8 @@ export async function getEndgamePosition(): Promise<EndgamePosition | null> {
 
 export async function getPolgarPuzzle(type?: string): Promise<Puzzle | null> {
   const query = type ? `?type=${encodeURIComponent(type)}` : '';
-  const response = await fetch(`${API_BASE}/puzzle/polgar${query}`, { headers: authHeaders() });
-  
-  if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.error || 'Failed to fetch Polgar puzzle');
-  }
-  return await response.json();
+  const response = await fetch(`${API_BASE}/puzzle/polgar${query}`, { headers: authHeaders(), credentials: 'include' });
+  return await parseJsonOrThrow(response) as Puzzle;
 }
 
 // ─── Stockfish ────────────────────────────────────────────────────────────────
@@ -88,10 +97,11 @@ export async function getStockfishBestMove(
     const response = await fetch(`${API_BASE}/bestmove`, {
       method: 'POST',
       headers: authHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ fen, depth: depthValue, skillLevel }),
     });
-    const data = await response.json();
-    return data.bestmove;
+    const data = await parseJsonOrThrow(response) as { bestmove?: string };
+    return data.bestmove ?? null;
   } catch (error) {
     console.error('Error fetching Stockfish best move:', error);
     return null;
@@ -102,11 +112,13 @@ export async function getStockfishBestMove(
 
 export async function reportPuzzleResult(id: string, success: boolean): Promise<void> {
   try {
-    await fetch(`${API_BASE}/api/progress/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${API_BASE}/api/progress/${encodeURIComponent(id)}`, {
       method: 'POST',
       headers: authHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ success }),
     });
+    await parseJsonOrThrow(response);
   } catch (error) {
     console.error('Error reporting puzzle result:', error);
   }
@@ -114,8 +126,8 @@ export async function reportPuzzleResult(id: string, success: boolean): Promise<
 
 export async function getPuzzleStats(): Promise<PuzzleStats | null> {
   try {
-    const response = await fetch(`${API_BASE}/puzzle/stats`, { headers: authHeaders() });
-    return await response.json();
+    const response = await fetch(`${API_BASE}/puzzle/stats`, { headers: authHeaders(), credentials: 'include' });
+    return await parseJsonOrThrow(response) as PuzzleStats;
   } catch (error) {
     console.error('Error fetching puzzle stats:', error);
     return null;

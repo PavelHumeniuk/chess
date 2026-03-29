@@ -40,9 +40,21 @@ jobs:
         working-directory: ./frontend
         run: npm run lint
 
+      - name: Run Backend lint
+        working-directory: ./backend
+        run: npm run lint
+
       - name: Run Frontend tests
         working-directory: ./frontend
         run: npm test -- --run
+
+      - name: Run Backend tests
+        working-directory: ./backend
+        run: npm test
+
+      - name: Backend smoke check
+        working-directory: ./backend
+        run: npm run smoke
 
       - name: Build Frontend (verification)
         working-directory: ./frontend
@@ -116,7 +128,7 @@ jobs:
           target: "~/chess-app"
 
       - name: SSH into VPS and deploy
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}

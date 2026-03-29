@@ -44,8 +44,8 @@ This project is configured for automated deployment to a VPS via GitHub Actions 
 - **Detailed Guide**: See [DEPLOY.md](./DEPLOY.md) for advanced configuration.
 
 ### Deployment Workflow:
-1.  **CI**: Every push to `main` triggers `.github/workflows/main.yml` to lint, test, and build the frontend.
-2.  **CD**: On success, `.github/workflows/deploy.yml` builds Docker images, pushes them to GHCR, and redeploys on your VPS via SSH.
+1.  **CI**: Every push to `main` triggers `.github/workflows/main.yml` to lint, test, and verify build for frontend and backend.
+2.  **CD**: In the same `.github/workflows/main.yml` pipeline, Docker images are built/pushed to GHCR and deployment runs via SSH.
 
 ---
 

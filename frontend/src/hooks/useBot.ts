@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getStockfishBestMove } from '../engine/eval';
 import type { GameMode } from '../components/GameMenu';
-import type { Square, PieceType, GameStatus } from '../engine/types';
+import type { Square, PieceType } from '../engine/types';
 import type { ChessGame } from '../engine/ChessGame';
 
 interface BotProps {
@@ -10,11 +10,10 @@ interface BotProps {
   gameMode: GameMode;
   playerColor: 'w' | 'b';
   skillLevel: number;
-  status: GameStatus;
   onBotMove: (from: Square, to: Square, promotion?: PieceType) => void;
 }
 
-export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, status, onBotMove }: BotProps) {
+export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBotMove }: BotProps) {
   const [isBotThinking, setIsBotThinking] = useState(false);
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, statu
       };
       makeBotMove();
     }
-  }, [game, isSetup, gameMode, playerColor, skillLevel, status, isBotThinking, onBotMove]);
+  }, [game, isSetup, gameMode, playerColor, skillLevel, isBotThinking, onBotMove]);
 
   return { isBotThinking };
 }
