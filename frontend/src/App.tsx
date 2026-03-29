@@ -11,6 +11,7 @@ import GameMenu from './components/GameMenu';
 import type { GameMode } from './components/GameMenu';
 import { 
   getStockfishEvaluation, 
+  getStockfishBestMove,
   getPolgarPuzzle, 
   getEndgamePosition,
 } from './engine/eval';
@@ -65,6 +66,8 @@ function App() {
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [showEval, setShowEval] = useState(false);
   const [stockfishEval, setStockfishEval] = useState<{ score: number, mate: number | null }>({ score: 0, mate: null });
+  const [hintText, setHintText] = useState<string | null>(null);
+  const [isHintLoading, setIsHintLoading] = useState(false);
 
   // Initial load
   useEffect(() => {
@@ -227,6 +230,7 @@ function App() {
     setSkillLevel(level);
     setIsSetup(false);
     setPuzzleFeedback(null);
+    setHintText(null);
     setPuzzleStep(0);
     setEndgameInfo(null);
     if (polgarType) setSelectedPolgarType(polgarType);
@@ -238,6 +242,7 @@ function App() {
           setCurrentPuzzle(puzzle);
           loadGame(puzzle.fen);
           setPlayerColor(game.turn());
+          setHintText(null);
         }
       } catch (err) {
         setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
@@ -250,9 +255,11 @@ function App() {
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
         setPlayerColor(endgame.side);
+        setHintText(null);
       }
     } else {
       setCurrentPuzzle(null);
+      setHintText(null);
       resetGame();
     }
   };
@@ -273,6 +280,7 @@ function App() {
         setCurrentPuzzle(puzzle);
         setPuzzleStep(0);
         setPuzzleFeedback(null);
+        setHintText(null);
         loadGame(puzzle.fen);
         setPlayerColor(game.turn());
       }
@@ -284,9 +292,28 @@ function App() {
 
   const handleNewGame = useCallback(() => {
     setIsSetup(true);
+    setHintText(null);
     clearState();
     resetGame();
   }, [clearState, resetGame]);
+
+  const handleHint = useCallback(async () => {
+    if (gameMode !== 'polgar' || !currentPuzzle) return;
+    setIsHintLoading(true);
+    try {
+      const bestMoveUci = await getStockfishBestMove(game.fen(), 12, 20);
+      if (!bestMoveUci) {
+        setHintText('No hint available');
+        return;
+      }
+      const san = game.getSanForUci(bestMoveUci);
+      setHintText(san || bestMoveUci);
+    } catch {
+      setHintText('No hint available');
+    } finally {
+      setIsHintLoading(false);
+    }
+  }, [gameMode, currentPuzzle, game]);
 
   const handleToggleEval = useCallback(() => {
     setShowEval((prev) => !prev);
@@ -362,7 +389,15 @@ function App() {
                       {gameMode === 'endgame' ? 'Next Endgame ➡️' : 'Next Puzzle ➡️'}
                     </button>
                   )}
+                  {gameMode === 'polgar' && (
+                    <button className="next-puzzle-btn" onClick={handleHint} disabled={isHintLoading}>
+                      {isHintLoading ? 'Finding Hint...' : '💡 Hint'}
+                    </button>
+                  )}
               </div>
+              {gameMode === 'polgar' && hintText && (
+                <div className="puzzle-feedback info">Hint: {hintText}</div>
+              )}
             </div>
 
             <aside className="app__sidebar">

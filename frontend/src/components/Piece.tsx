@@ -5,7 +5,7 @@ import './Piece.css';
 const PIECE_IMAGES: Record<PieceColor, Record<PSymbol, string>> = {
     w: {
         k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg',
-        q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qlt45.svg',
+        q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
         r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
         b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
         n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
@@ -21,6 +21,11 @@ const PIECE_IMAGES: Record<PieceColor, Record<PSymbol, string>> = {
     },
 };
 
+const PIECE_FALLBACK: Record<PieceColor, Record<PSymbol, string>> = {
+    w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
+    b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' },
+};
+
 interface PieceProps {
     piece: PieceType;
     draggable?: boolean;
@@ -28,15 +33,30 @@ interface PieceProps {
 }
 
 const Piece: React.FC<PieceProps> = ({ piece, draggable, onDragStart }) => {
+    const [imageFailed, setImageFailed] = React.useState(false);
     const imageUrl = PIECE_IMAGES[piece.color][piece.type];
+    const fallbackSymbol = PIECE_FALLBACK[piece.color][piece.type];
+
     return (
         <div 
             className={`piece piece--${piece.color} piece--${piece.type}`} 
             data-testid={`piece-${piece.color}-${piece.type}`}
             draggable={draggable}
             onDragStart={onDragStart}
-            style={{ backgroundImage: `url(${imageUrl})` }}
-        />
+            aria-label={`${piece.color}-${piece.type}`}
+        >
+            {!imageFailed ? (
+                <img
+                    className="piece__img"
+                    src={imageUrl}
+                    alt=""
+                    draggable={false}
+                    onError={() => setImageFailed(true)}
+                />
+            ) : (
+                <span className="piece__fallback">{fallbackSymbol}</span>
+            )}
+        </div>
     );
 };
 

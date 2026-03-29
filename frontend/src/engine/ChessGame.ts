@@ -89,6 +89,21 @@ export class ChessGame {
         return moves.some((m) => m.to === to && m.promotion);
     }
 
+    getSanForUci(uciMove: string): string | null {
+        if (uciMove.length < 4) return null;
+        const from = uciMove.slice(0, 2) as Square;
+        const to = uciMove.slice(2, 4) as Square;
+        const promotion = (uciMove.length > 4 ? uciMove[4] : undefined) as PieceType | undefined;
+
+        try {
+            const temp = new Chess(this.chess.fen());
+            const move = temp.move({ from, to, promotion });
+            return move?.san ?? null;
+        } catch {
+            return null;
+        }
+    }
+
     getKingSquare(color: PieceColor): Square | null {
         const board = this.chess.board();
         for (let r = 0; r < 8; r++) {
