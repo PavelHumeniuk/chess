@@ -9,6 +9,7 @@ interface PuzzleProps {
   setPuzzleStep: (step: number | ((prev: number) => number)) => void;
   syncState: () => void;
   makeMove: (from: Square, to: Square, promotion?: PieceType) => MoveResult;
+  enabled: boolean;
 }
 
 export function usePuzzles({ 
@@ -17,23 +18,31 @@ export function usePuzzles({
   setPuzzleStep, 
   syncState, 
   makeMove,
+  enabled,
 }: PuzzleProps) {
   const [puzzleFeedback, setPuzzleFeedback] = useState<string | null>(null);
   const [puzzleStats, setPuzzleStats] = useState<PuzzleStats | null>(null);
 
   const fetchPuzzleStats = useCallback(async () => {
+    if (!enabled) {
+      setPuzzleStats(null);
+      return;
+    }
     const stats = await getPuzzleStats();
     setPuzzleStats(stats);
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let active = true;
     (async () => {
-        const stats = await getPuzzleStats();
-        if (active) setPuzzleStats(stats);
+      const stats = await getPuzzleStats();
+      if (active) setPuzzleStats(stats);
     })();
+
     return () => { active = false; };
-  }, []);
+  }, [enabled]);
 
   const handlePuzzleMove = useCallback(async (from: Square, to: Square) => {
     if (!currentPuzzle) return;
@@ -66,7 +75,7 @@ export function usePuzzles({
   return {
     puzzleFeedback,
     setPuzzleFeedback,
-    puzzleStats,
+    puzzleStats: enabled ? puzzleStats : null,
     fetchPuzzleStats,
     handlePuzzleMove
   };

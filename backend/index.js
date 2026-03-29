@@ -226,7 +226,7 @@ api.get('/puzzle/polgar', requireAuth, (req, res) => {
   const seenIds = new Set(progress.map(p => p.puzzle_id));
 
   if (type === 'Review Due') {
-    const dueItems = getDueToday.all(userId);
+    const dueItems = getDueToday(userId);
     const dueIds = new Set(dueItems.map(p => p.puzzle_id));
     if (dueIds.size === 0) {
       return res.status(404).json({ error: 'No puzzles due for review!' });
@@ -263,7 +263,7 @@ api.get('/puzzle/polgar', requireAuth, (req, res) => {
 
 // GET /progress/due — puzzles due for review today
 api.get('/progress/due', requireAuth, (req, res) => {
-  const due = getDueToday.all(req.user.id);
+  const due = getDueToday(req.user.id);
   res.json(due);
 });
 

@@ -71,14 +71,18 @@ const upsertPuzzleProgress = db.prepare(`
     last_seen = excluded.last_seen
 `);
 
-const getDueToday = db.prepare(`
-  SELECT * FROM puzzle_progress
-  WHERE user_id = ? AND next_due <= datetime('now')
-`);
-
 const getAllProgress = db.prepare(`
   SELECT * FROM puzzle_progress WHERE user_id = ?
 `);
+
+function isDueDate(nextDue, now = new Date()) {
+  const dueAt = new Date(nextDue);
+  return Number.isFinite(dueAt.getTime()) && dueAt <= now;
+}
+
+function getDueToday(userId, now = new Date()) {
+  return getAllProgress.all(userId).filter(progress => isDueDate(progress.next_due, now));
+}
 
 module.exports = {
   db,
@@ -87,4 +91,5 @@ module.exports = {
   upsertPuzzleProgress,
   getDueToday,
   getAllProgress,
+  isDueDate,
 };

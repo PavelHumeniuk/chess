@@ -10,10 +10,11 @@ interface BotProps {
   gameMode: GameMode;
   playerColor: 'w' | 'b';
   skillLevel: number;
+  positionKey: string;
   onBotMove: (from: Square, to: Square, promotion?: PieceType) => void;
 }
 
-export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBotMove }: BotProps) {
+export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, positionKey, onBotMove }: BotProps) {
   const [isBotThinking, setIsBotThinking] = useState(false);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, onBot
       };
       makeBotMove();
     }
-  }, [game, isSetup, gameMode, playerColor, skillLevel, isBotThinking, onBotMove]);
+  }, [game, isSetup, gameMode, playerColor, skillLevel, positionKey, isBotThinking, onBotMove]);
 
   return { isBotThinking };
 }

@@ -33,6 +33,7 @@ interface PendingPromotion {
 
 function App() {
   const { loadState, saveState, clearState } = usePersistence();
+  const { user, loading, logout } = useAuth();
   const initialData = loadState();
 
   const {
@@ -82,6 +83,7 @@ function App() {
     setPuzzleStep,
     syncState,
     makeMove,
+    enabled: !!user && !loading,
   });
 
   const onBotMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
@@ -97,6 +99,7 @@ function App() {
     gameMode,
     playerColor,
     skillLevel,
+    positionKey: game.fen(),
     onBotMove
   });
 
@@ -319,7 +322,10 @@ function App() {
     setShowEval((prev) => !prev);
   }, []);
 
-  const { user, loading, logout } = useAuth();
+  const handleLogout = useCallback(() => {
+    clearState();
+    logout();
+  }, [clearState, logout]);
 
   if (loading) {
     return <div className="app-loading">Loading…</div>;
@@ -344,7 +350,7 @@ function App() {
               <img className="user-avatar" src={user.avatar} alt={user.name} referrerPolicy="no-referrer" />
             )}
             <span className="user-name">{user.name.split(' ')[0]}</span>
-            <button className="logout-btn" onClick={logout} title="Sign out">↩</button>
+            <button className="logout-btn" onClick={handleLogout} title="Sign out">↩</button>
           </div>
         </div>
       </header>
@@ -480,4 +486,3 @@ function App() {
 }
 
 export default App;
-
