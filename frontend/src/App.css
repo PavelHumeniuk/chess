@@ -159,6 +159,22 @@
     transition: background 0.2s;
 }
 
+.theory-btn {
+    padding: 12px;
+    background: linear-gradient(135deg, #2f4f64, #466d86);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, filter 0.2s;
+}
+
+.theory-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+}
+
 .endgame-info {
     padding: 16px;
     background: rgba(255, 255, 255, 0.05);
@@ -178,6 +194,34 @@
     color: #b0b0b0;
     font-size: 0.9rem;
     line-height: 1.4;
+}
+
+.theory-card {
+    background: linear-gradient(180deg, rgba(70, 109, 134, 0.18), rgba(255, 255, 255, 0.04));
+    border-color: rgba(119, 181, 217, 0.18);
+}
+
+.theory-section {
+    margin-top: 14px;
+}
+
+.theory-section h4 {
+    margin: 0 0 8px 0;
+    color: #dcefff;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.theory-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #c8d5df;
+}
+
+.theory-list li {
+    margin-bottom: 8px;
+    line-height: 1.45;
 }
 
 .statistics-card {

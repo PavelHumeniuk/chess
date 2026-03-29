@@ -49,6 +49,12 @@ This project is configured for automated deployment to a VPS via GitHub Actions 
 
 ---
 
+## 📚 Training Content
+
+- **Training system design**: See [TRAINING-CONTENT.md](./TRAINING-CONTENT.md) for how Polgar puzzles and Silman-style endgames are sourced, selected, repeated, extended, and saved.
+
+---
+
 ## 📝 Planned Features (Current Roadmap)
 -   [ ] **Google OAuth 2.0**: Log in to sync your progress across devices.
 -   [ ] **SQLite Persistence**: User-specific puzzle progress and stats stored in a persistent database.

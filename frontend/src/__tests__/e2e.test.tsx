@@ -131,6 +131,21 @@ describe('End-to-End Game Scenarios', () => {
         expect(screen.getByText('Checkmate with King and Queen')).toBeInTheDocument();
     });
 
+    it('Game 7a: Endgame theory button opens chapter guidance', async () => {
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        startGame();
+
+        await waitFor(() => {
+            expect(screen.getByText('Show Theory')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('Show Theory'));
+
+        expect(screen.getByText(/Two-Rook Ladder Mate/i)).toBeInTheDocument();
+        expect(screen.getByText(/Core Principles/i)).toBeInTheDocument();
+    });
+
     it('Game 7b: Endgame game-over button restarts the same endgame instead of opening menu', async () => {
         (evalEngine.getEndgamePosition as Mock)
             .mockResolvedValueOnce({

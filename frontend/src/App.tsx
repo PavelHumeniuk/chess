@@ -26,6 +26,7 @@ import { usePersistence } from './hooks/usePersistence';
 import type { GameState } from './hooks/usePersistence';
 import { useBot } from './hooks/useBot';
 import { usePuzzles } from './hooks/usePuzzles';
+import { getEndgameTheory } from './endgameTheory';
 
 interface PendingPromotion {
   from: Square;
@@ -71,6 +72,7 @@ function App() {
   const [stockfishEval, setStockfishEval] = useState<{ score: number, mate: number | null }>({ score: 0, mate: null });
   const [hintText, setHintText] = useState<string | null>(null);
   const [isHintLoading, setIsHintLoading] = useState(false);
+  const [showEndgameTheory, setShowEndgameTheory] = useState(false);
   const reportedEndgameResult = useRef<string | null>(null);
 
   const sideToMoveFromFen = useCallback((fen: string): 'w' | 'b' => (
@@ -151,6 +153,7 @@ function App() {
 
   useEffect(() => {
     reportedEndgameResult.current = null;
+    setShowEndgameTheory(false);
   }, [endgameInfo?.id]);
 
   useEffect(() => {
@@ -375,6 +378,10 @@ function App() {
     setShowEval((prev) => !prev);
   }, []);
 
+  const handleToggleEndgameTheory = useCallback(() => {
+    setShowEndgameTheory((prev) => !prev);
+  }, []);
+
   const handleLogout = useCallback(() => {
     clearState();
     logout();
@@ -391,6 +398,7 @@ function App() {
   const isMateLinePuzzle = gameMode === 'polgar' && (currentPuzzle?.themes.includes('Mate in Two') || currentPuzzle?.themes.includes('Mate in Three'));
   const isTrainingLocked = (isMateLinePuzzle && (isPuzzleReplying || isPuzzleResolved || game.turn() !== playerColor))
     || ((gameMode === 'bot' || gameMode === 'endgame') && game.turn() !== playerColor);
+  const endgameTheory = getEndgameTheory(endgameInfo);
 
   return (
     <div className="app">
@@ -461,6 +469,11 @@ function App() {
                       {isHintLoading ? 'Finding Hint...' : '💡 Hint'}
                     </button>
                   )}
+                  {gameMode === 'endgame' && endgameTheory && (
+                    <button className="theory-btn" onClick={handleToggleEndgameTheory}>
+                      {showEndgameTheory ? 'Hide Theory' : 'Show Theory'}
+                    </button>
+                  )}
               </div>
               {gameMode === 'polgar' && hintText && (
                 <div className="puzzle-feedback info">Hint: {hintText}</div>
@@ -475,6 +488,36 @@ function App() {
                   <p><strong>{endgameInfo.levelLabel}</strong></p>
                   <p>{endgameInfo.chapter}</p>
                   <p>{endgameInfo.description}</p>
+                </div>
+              )}
+              {gameMode === 'endgame' && endgameTheory && showEndgameTheory && (
+                <div className="endgame-info theory-card">
+                  <h3>{endgameTheory.title}</h3>
+                  <p>{endgameTheory.overview}</p>
+                  <div className="theory-section">
+                    <h4>Core Principles</h4>
+                    <ul className="theory-list">
+                      {endgameTheory.principles.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="theory-section">
+                    <h4>How To Think About It</h4>
+                    <ul className="theory-list">
+                      {endgameTheory.method.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="theory-section">
+                    <h4>Common Mistakes</h4>
+                    <ul className="theory-list">
+                      {endgameTheory.mistakes.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
               {!endgameInfo && gameMode === 'endgame' && (
