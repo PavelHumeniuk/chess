@@ -11,7 +11,16 @@ const authState = vi.hoisted(() => ({
 const evalMocks = vi.hoisted(() => ({
   getStockfishEvaluation: vi.fn(() => Promise.resolve({ score: 10, mate: null })),
   getPolgarPuzzle: vi.fn(),
-  getEndgamePosition: vi.fn(),
+  getEndgamePosition: vi.fn(() => Promise.resolve({
+    id: 'end1',
+    level: 'beginner_class_d',
+    levelLabel: 'Beginners to Class D (<1400)',
+    chapter: 'The Staircase',
+    name: 'The Staircase Mate',
+    fen: '7k/8/8/8/8/8/R7/R5K1 w - - 0 1',
+    side: 'w',
+    description: 'Use the classic ladder pattern with two rooks to box the king in and finish the mate.',
+  })),
   getStockfishBestMove: vi.fn(() => Promise.resolve('e7e5')),
   reportPuzzleResult: vi.fn(() => Promise.resolve()),
   getPuzzleStats: vi.fn(() => Promise.resolve(null)),

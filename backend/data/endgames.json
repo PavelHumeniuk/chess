@@ -1,44 +1,202 @@
 [
-    {
-        "id": "eg-1",
-        "name": "King + Queen vs King",
-        "fen": "k7/8/1Q6/8/8/8/8/K7 w - - 0 1",
-        "side": "w",
-        "description": "Checkmate the lone king using your queen and king."
-    },
-    {
-        "id": "eg-2",
-        "name": "King + Rook vs King",
-        "fen": "k7/8/1R6/8/8/8/8/K7 w - - 0 1",
-        "side": "w",
-        "description": "Force the king to the edge and deliver mate with the rook."
-    },
-    {
-        "id": "eg-3",
-        "name": "Two Rooks vs King",
-        "fen": "k7/8/1R6/2R5/8/8/8/K7 w - - 0 1",
-        "side": "w",
-        "description": "Use the 'ladder mate' technique with both rooks."
-    },
-    {
-        "id": "eg-4",
-        "name": "King + Two Bishops vs King",
-        "fen": "k7/8/1B6/2B5/8/8/8/K7 w - - 0 1",
-        "side": "w",
-        "description": "A classic test of coordination. Force the king into a corner."
-    },
-    {
-        "id": "eg-5",
-        "name": "Lucena Position",
-        "fen": "1K1r4/3P4/k7/8/8/r7/8/7R w - - 0 1",
-        "side": "w",
-        "description": "The most important rook endgame. Can you build the bridge?"
-    },
-    {
-        "id": "eg-6",
-        "name": "Philidor Position",
-        "fen": "4k3/1R1P4/4K3/r7/8/8/8/8 b - - 0 1",
-        "side": "b",
-        "description": "Defend as Black. Can you reach the drawn position?"
-    }
+  {
+    "id": "silman-bd-1",
+    "level": "beginner_class_d",
+    "levelLabel": "Beginners to Class D (<1400)",
+    "chapter": "The Staircase",
+    "name": "The Staircase Mate",
+    "fen": "7k/8/8/8/8/8/R7/R5K1 w - - 0 1",
+    "side": "w",
+    "description": "Use the classic ladder pattern with two rooks to box the king in and finish the mate."
+  },
+  {
+    "id": "silman-bd-2",
+    "level": "beginner_class_d",
+    "levelLabel": "Beginners to Class D (<1400)",
+    "chapter": "Queen vs. Lone King",
+    "name": "Box In With The Queen",
+    "fen": "7k/8/6Q1/8/8/8/6K1/8 w - - 0 1",
+    "side": "w",
+    "description": "Drive the king to the edge with the queen and bring your king closer for the final mate."
+  },
+  {
+    "id": "silman-bd-3",
+    "level": "beginner_class_d",
+    "levelLabel": "Beginners to Class D (<1400)",
+    "chapter": "Basic Opposition",
+    "name": "Win The Opposition",
+    "fen": "8/8/8/3k4/3P4/3K4/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Take the opposition first, then escort the pawn through."
+  },
+  {
+    "id": "silman-bd-4",
+    "level": "beginner_class_d",
+    "levelLabel": "Beginners to Class D (<1400)",
+    "chapter": "The Square Of The Pawn",
+    "name": "Can The King Catch The Pawn?",
+    "fen": "8/8/8/4k3/8/4K3/5P2/8 w - - 0 1",
+    "side": "w",
+    "description": "Calculate the square and decide whether the pawn can outrun the enemy king."
+  },
+  {
+    "id": "silman-c-1",
+    "level": "class_c",
+    "levelLabel": "Class C (1400-1599)",
+    "chapter": "King And Pawn vs. Lone King",
+    "name": "Key Squares",
+    "fen": "8/8/8/8/3k4/3P4/3K4/8 w - - 0 1",
+    "side": "w",
+    "description": "Use the key-square method to decide whether the pawn ending is won."
+  },
+  {
+    "id": "silman-c-2",
+    "level": "class_c",
+    "levelLabel": "Class C (1400-1599)",
+    "chapter": "King And Pawn vs. Lone King",
+    "name": "Break Through With Tempo",
+    "fen": "8/8/8/3k4/3P4/4K3/8/8 w - - 0 1",
+    "side": "w",
+    "description": "A pure king-and-pawn ending where one tempo decides everything."
+  },
+  {
+    "id": "silman-c-3",
+    "level": "class_c",
+    "levelLabel": "Class C (1400-1599)",
+    "chapter": "Lucena Position",
+    "name": "Build The Bridge",
+    "fen": "1k6/1P6/2K5/8/8/8/3r4/3R4 w - - 0 1",
+    "side": "w",
+    "description": "The winning rook ending: shield your king and queen the pawn."
+  },
+  {
+    "id": "silman-c-4",
+    "level": "class_c",
+    "levelLabel": "Class C (1400-1599)",
+    "chapter": "Philidor Position",
+    "name": "Hold The Philidor",
+    "fen": "8/8/8/8/3k4/3r4/3P4/3KR3 b - - 0 1",
+    "side": "b",
+    "description": "Defend the rook ending by cutting the king off before the pawn reaches the sixth rank."
+  },
+  {
+    "id": "silman-b-1",
+    "level": "class_b",
+    "levelLabel": "Class B (1600-1799)",
+    "chapter": "King And Two Healthy Pawns vs. Lone King (Connected)",
+    "name": "Connected Passers",
+    "fen": "8/8/8/3k4/3PP3/3K4/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Connected passed pawns are powerful. Coordinate king and pawns to force promotion."
+  },
+  {
+    "id": "silman-b-2",
+    "level": "class_b",
+    "levelLabel": "Class B (1600-1799)",
+    "chapter": "King And Two Healthy Pawns vs. Lone King (Separated)",
+    "name": "Separated Passers",
+    "fen": "8/8/8/3k4/2P5/8/3PK3/8 w - - 0 1",
+    "side": "w",
+    "description": "Use the distance between pawns to stretch the king and create a breakthrough."
+  },
+  {
+    "id": "silman-b-3",
+    "level": "class_b",
+    "levelLabel": "Class B (1600-1799)",
+    "chapter": "King And Two Healthy Pawns vs. Lone King (Separated)",
+    "name": "Outside Passed Pawn",
+    "fen": "8/8/3k4/8/P7/8/3PK3/8 w - - 0 1",
+    "side": "w",
+    "description": "Use the outside passer as a decoy, then invade on the other wing."
+  },
+  {
+    "id": "silman-b-4",
+    "level": "class_b",
+    "levelLabel": "Class B (1600-1799)",
+    "chapter": "Breakthroughs",
+    "name": "Pawn Breakthrough",
+    "fen": "8/8/8/2k5/2p5/2P5/2PKP3/8 w - - 0 1",
+    "side": "w",
+    "description": "Calculate the forcing pawn break that creates an unstoppable passer."
+  },
+  {
+    "id": "silman-a-1",
+    "level": "class_a",
+    "levelLabel": "Class A (1800-1999)",
+    "chapter": "Strange Races",
+    "name": "Race The Passed Pawns",
+    "fen": "8/4k3/3P4/8/8/4p3/4K3/8 w - - 0 1",
+    "side": "w",
+    "description": "A pure pawn race where exact move order decides whether you queen in time."
+  },
+  {
+    "id": "silman-a-2",
+    "level": "class_a",
+    "levelLabel": "Class A (1800-1999)",
+    "chapter": "Trebuchet",
+    "name": "The Trebuchet Zugzwang",
+    "fen": "8/8/8/2k5/2p5/2P5/2K5/8 w - - 0 1",
+    "side": "w",
+    "description": "One side must abandon the pawn. Find the winning zugzwang idea."
+  },
+  {
+    "id": "silman-a-3",
+    "level": "class_a",
+    "levelLabel": "Class A (1800-1999)",
+    "chapter": "Triangulation",
+    "name": "Lose A Tempo",
+    "fen": "8/8/8/3k4/3P4/5K2/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Use triangulation to hand the move back to your opponent in the critical position."
+  },
+  {
+    "id": "silman-a-4",
+    "level": "class_a",
+    "levelLabel": "Class A (1800-1999)",
+    "chapter": "Breakthroughs",
+    "name": "Create The Distant Passed Pawn",
+    "fen": "8/8/3k4/8/2P1P3/3P4/3K4/8 w - - 0 1",
+    "side": "w",
+    "description": "Find the forcing breakthrough sequence that leaves one pawn free to run."
+  },
+  {
+    "id": "silman-e-1",
+    "level": "experts",
+    "levelLabel": "Experts (2000-2199)",
+    "chapter": "Building Blocks",
+    "name": "Building Block Setup",
+    "fen": "8/8/2k5/2P5/3K4/8/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Convert a king-and-pawn edge by using the right building-block geometry."
+  },
+  {
+    "id": "silman-e-2",
+    "level": "experts",
+    "levelLabel": "Experts (2000-2199)",
+    "chapter": "Building Blocks",
+    "name": "Reserve Tempi",
+    "fen": "8/8/8/2k5/2P5/4K3/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Keep a reserve tempo and exploit the winning waiting move."
+  },
+  {
+    "id": "silman-m-1",
+    "level": "masters",
+    "levelLabel": "Masters (2200-2399)",
+    "chapter": "Cat And Mouse",
+    "name": "Cat And Mouse",
+    "fen": "8/8/8/3k4/3p4/3P4/4K3/8 w - - 0 1",
+    "side": "w",
+    "description": "A razor-thin king-and-pawn ending where every tempo is poison."
+  },
+  {
+    "id": "silman-m-2",
+    "level": "masters",
+    "levelLabel": "Masters (2200-2399)",
+    "chapter": "Cat And Mouse",
+    "name": "Shouldering And Tempo",
+    "fen": "8/8/4k3/8/3P4/4K3/8/8 w - - 0 1",
+    "side": "w",
+    "description": "Use shouldering and precise tempi to seize the key squares."
+  }
 ]

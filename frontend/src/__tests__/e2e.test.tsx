@@ -25,6 +25,9 @@ vi.mock('../engine/eval', () => ({
     })),
     getEndgamePosition: vi.fn(() => Promise.resolve({
         id: 'end1',
+        level: 'beginner_class_d',
+        levelLabel: 'Beginners to Class D (<1400)',
+        chapter: 'The Staircase',
         name: 'King and Queen vs King',
         fen: '4k3/4Q3/4K3/8/8/8/8/8 w - - 0 1',
         side: 'w',
@@ -115,14 +118,42 @@ describe('End-to-End Game Scenarios', () => {
     it('Game 7: Endgame Mode', async () => {
         render(<App />);
         fireEvent.click(screen.getByText('Endgame'));
+        fireEvent.click(screen.getByText('Class B'));
         startGame();
 
         await waitFor(() => {
-            expect(evalEngine.getEndgamePosition).toHaveBeenCalled();
+            expect(evalEngine.getEndgamePosition).toHaveBeenCalledWith('class_b');
         });
 
         expect(screen.getByText('King and Queen vs King')).toBeInTheDocument();
         expect(screen.getByText('Checkmate with King and Queen')).toBeInTheDocument();
+    });
+
+    it('Game 7b: Endgame game-over button restarts the same endgame instead of opening menu', async () => {
+        (evalEngine.getEndgamePosition as Mock)
+            .mockResolvedValueOnce({
+                id: 'end-loss',
+                level: 'beginner_class_d',
+                levelLabel: 'Beginners to Class D (<1400)',
+                chapter: 'The Staircase',
+                name: 'Lost Endgame',
+                fen: '7k/6Q1/6K1/8/8/8/8/8 b - - 0 1',
+                side: 'b',
+                description: 'Black to move and already lost.',
+            });
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        startGame();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('game-status')).toHaveTextContent('Checkmate');
+        });
+
+        fireEvent.click(screen.getByTestId('new-game-button'));
+
+        expect(screen.queryByText('Select Game Mode')).not.toBeInTheDocument();
+        expect(screen.getByText('Lost Endgame')).toBeInTheDocument();
     });
 
     it('Game 8: Polgar Puzzle Mode and Solve', async () => {

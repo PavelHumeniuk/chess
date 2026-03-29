@@ -193,7 +193,14 @@ const endgames = require('./data/endgames.json');
 
 
 api.get('/puzzle/endgame', (req, res) => {
-  res.json(endgames[Math.floor(Math.random() * endgames.length)]);
+  const level = typeof req.query.level === 'string' ? req.query.level : '';
+  const filtered = level ? endgames.filter(position => position.level === level) : endgames;
+
+  if (filtered.length === 0) {
+    return res.status(404).json({ error: 'No endgame positions found for that level.' });
+  }
+
+  res.json(filtered[Math.floor(Math.random() * filtered.length)]);
 });
 
 // ─── SRS helpers (using DB) ───────────────────────────────────────────────────

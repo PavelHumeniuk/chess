@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPuzzleStats, getStockfishBestMove, getStockfishEvaluation, reportPuzzleResult } from './eval';
+import { getEndgamePosition, getPuzzleStats, getStockfishBestMove, getStockfishEvaluation, reportPuzzleResult } from './eval';
 
 describe('eval', () => {
   afterEach(() => {
@@ -51,5 +51,30 @@ describe('eval', () => {
 
     const stats = await getPuzzleStats();
     expect(stats).toBeNull();
+  });
+
+  it('includes the selected endgame level in the request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'end-1',
+        level: 'class_b',
+        levelLabel: 'Class B (1600-1799)',
+        chapter: 'Connected Passers',
+        name: 'Connected Passers',
+        fen: '8/8/8/3k4/3PP3/3K4/8/8 w - - 0 1',
+        side: 'w',
+        description: 'desc',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getEndgamePosition('class_b');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/puzzle/endgame?level=class_b'),
+      expect.any(Object),
+    );
   });
 });

@@ -57,6 +57,9 @@ export interface Puzzle {
 
 export interface EndgamePosition {
   id: string;
+  level: string;
+  levelLabel: string;
+  chapter: string;
   name: string;
   fen: string;
   side: 'w' | 'b';
@@ -74,9 +77,10 @@ export interface PuzzleStats {
 // ─── Puzzles ──────────────────────────────────────────────────────────────────
 
 
-export async function getEndgamePosition(): Promise<EndgamePosition | null> {
+export async function getEndgamePosition(level?: string): Promise<EndgamePosition | null> {
   try {
-    const response = await fetch(apiUrl('/puzzle/endgame'), { headers: authHeaders(), credentials: 'include' });
+    const query = level ? `?level=${encodeURIComponent(level)}` : '';
+    const response = await fetch(apiUrl(`/puzzle/endgame${query}`), { headers: authHeaders(), credentials: 'include' });
     return await parseJsonOrThrow(response) as EndgamePosition;
   } catch (error) {
     console.error('Error fetching endgame:', error);

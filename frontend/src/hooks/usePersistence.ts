@@ -11,6 +11,7 @@ export interface GameState {
   puzzleStep: number;
   endgameInfo: EndgamePosition | null;
   selectedPolgarType: string;
+  selectedEndgameLevel: string;
 }
 
 const STORAGE_KEY = 'chess_game_state';

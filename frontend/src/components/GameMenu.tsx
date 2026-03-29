@@ -9,6 +9,14 @@ interface GameMenuProps {
 
 const MIN_BOT_ELO = 800;
 const MAX_BOT_ELO = 2800;
+const ENDGAME_LEVELS = [
+    { value: 'beginner_class_d', label: 'Beginner-D' },
+    { value: 'class_c', label: 'Class C' },
+    { value: 'class_b', label: 'Class B' },
+    { value: 'class_a', label: 'Class A' },
+    { value: 'experts', label: 'Expert' },
+    { value: 'masters', label: 'Master' },
+];
 
 function eloToSkill(elo: number): number {
     const normalized = Math.round((elo - MIN_BOT_ELO) / 100);
@@ -20,6 +28,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
     const [playerColor, setPlayerColor] = React.useState<'w' | 'b'>('w');
     const [botElo, setBotElo] = React.useState(1800);
     const [polgarType, setPolgarType] = React.useState('Mate in One');
+    const [endgameLevel, setEndgameLevel] = React.useState('beginner_class_d');
 
     return (
         <div className="game-menu">
@@ -118,9 +127,33 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                 </div>
             )}
 
+            {mode === 'endgame' && (
+                <div className="game-menu__bot-settings">
+                    <div className="game-menu__setting">
+                        <label>Select Silman Level:</label>
+                        <div className="game-menu__options">
+                            {ENDGAME_LEVELS.map(({ value, label }) => (
+                                <button
+                                    key={value}
+                                    className={`game-menu__button ${endgameLevel === value ? 'active' : ''}`}
+                                    onClick={() => setEndgameLevel(value)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <button 
                 className="game-menu__start-btn"
-                onClick={() => onStartGame(mode, playerColor, eloToSkill(botElo), polgarType)}
+                onClick={() => onStartGame(
+                    mode,
+                    playerColor,
+                    eloToSkill(botElo),
+                    mode === 'polgar' ? polgarType : mode === 'endgame' ? endgameLevel : undefined,
+                )}
             >
                 Start Game
             </button>

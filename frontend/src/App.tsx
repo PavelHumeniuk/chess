@@ -63,6 +63,7 @@ function App() {
   const [puzzleStep, setPuzzleStep] = useState(initialData?.puzzleStep || 0);
   const [endgameInfo, setEndgameInfo] = useState<EndgamePosition | null>(initialData?.endgameInfo || null);
   const [selectedPolgarType, setSelectedPolgarType] = useState<string>(initialData?.selectedPolgarType || 'Mate in One');
+  const [selectedEndgameLevel, setSelectedEndgameLevel] = useState<string>(initialData?.selectedEndgameLevel || 'beginner_class_d');
 
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [showEval, setShowEval] = useState(false);
@@ -114,11 +115,12 @@ function App() {
         currentPuzzle,
         puzzleStep,
         endgameInfo,
-        selectedPolgarType
+        selectedPolgarType,
+        selectedEndgameLevel
       };
       saveState(state);
     }
-  }, [history, isSetup, gameMode, playerColor, skillLevel, currentPuzzle, puzzleStep, endgameInfo, selectedPolgarType, saveState, game]);
+  }, [history, isSetup, gameMode, playerColor, skillLevel, currentPuzzle, puzzleStep, endgameInfo, selectedPolgarType, selectedEndgameLevel, saveState, game]);
 
   // Trigger evaluation whenever history changes
   useEffect(() => {
@@ -236,9 +238,9 @@ function App() {
     setHintText(null);
     setPuzzleStep(0);
     setEndgameInfo(null);
-    if (polgarType) setSelectedPolgarType(polgarType);
     
     if (mode === 'polgar') {
+      if (polgarType) setSelectedPolgarType(polgarType);
       try {
         const puzzle = await getPolgarPuzzle(polgarType);
         if (puzzle) {
@@ -253,7 +255,9 @@ function App() {
         return;
       }
     } else if (mode === 'endgame') {
-      const endgame = await getEndgamePosition();
+      const endgameLevel = polgarType || selectedEndgameLevel;
+      setSelectedEndgameLevel(endgameLevel);
+      const endgame = await getEndgamePosition(endgameLevel);
       if (endgame) {
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
@@ -269,7 +273,7 @@ function App() {
 
   const handleNextPuzzle = async () => {
     if (gameMode === 'endgame') {
-      const endgame = await getEndgamePosition();
+      const endgame = await getEndgamePosition(selectedEndgameLevel);
       if (endgame) {
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
@@ -299,6 +303,26 @@ function App() {
     clearState();
     resetGame();
   }, [clearState, resetGame]);
+
+  const handleRestartTrainingPosition = useCallback(() => {
+    setHintText(null);
+    setPuzzleFeedback(null);
+    setPuzzleStep(0);
+
+    if (gameMode === 'polgar' && currentPuzzle) {
+      loadGame(currentPuzzle.fen);
+      setPlayerColor('w');
+      return;
+    }
+
+    if (gameMode === 'endgame' && endgameInfo) {
+      loadGame(endgameInfo.fen);
+      setPlayerColor(endgameInfo.side);
+      return;
+    }
+
+    resetGame();
+  }, [gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, setPuzzleFeedback]);
 
   const handleHint = useCallback(async () => {
     if (gameMode !== 'polgar' || !currentPuzzle) return;
@@ -386,9 +410,11 @@ function App() {
               <div className="app__controls-container">
                   <Controls 
                       onNewGame={handleNewGame} 
+                      onRestartPosition={handleRestartTrainingPosition}
                       isGameOver={game.isGameOver()} 
                       showEval={showEval}
                       onToggleEval={handleToggleEval}
+                      restartLabel={gameMode === 'endgame' ? '🔄 Restart Endgame' : gameMode === 'polgar' ? '🔄 Restart Puzzle' : '🎮 New Game'}
                   />
                   { (gameMode === 'polgar' || gameMode === 'endgame') && (
                     <button className="next-puzzle-btn" onClick={handleNextPuzzle}>
@@ -410,6 +436,8 @@ function App() {
               {endgameInfo && (
                 <div className="endgame-info">
                   <h3>{endgameInfo.name}</h3>
+                  <p><strong>{endgameInfo.levelLabel}</strong></p>
+                  <p>{endgameInfo.chapter}</p>
                   <p>{endgameInfo.description}</p>
                 </div>
               )}
