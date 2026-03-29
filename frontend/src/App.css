@@ -1,15 +1,20 @@
 .app {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: radial-gradient(circle at center, #312e2b 0%, #22201e 100%);
   color: #fff;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  overflow-x: hidden;
 }
 
 .app__header {
-  padding: 16px 20px 8px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 8px;
   width: 100%;
   max-width: 1200px;
   display: flex;
