@@ -37,8 +37,6 @@ services:
       - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
-      - "traefik.http.middlewares.backend-api-strip.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=backend-api-strip"
     environment:
       - NODE_ENV=production
       - PORT=3001

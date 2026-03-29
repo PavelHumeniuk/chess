@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -14,6 +14,7 @@ const {
 } = require('./db');
 
 const app = express();
+const api = express.Router();
 const port = process.env.PORT || 3001;
 const STOCKFISH_PATH = process.env.STOCKFISH_PATH || 'stockfish';
 const STOCKFISH_TIMEOUT_MS = Number(process.env.STOCKFISH_TIMEOUT_MS || 8000);
@@ -64,9 +65,9 @@ app.use(cors({
 app.use(bodyParser.json());
 
 // ─── Auth Routes ─────────────────────────────────────────────────────────────
-app.post('/auth/google', googleLogin);
-app.get('/auth/me', getMe);
-app.post('/auth/logout', logout);
+api.post('/auth/google', googleLogin);
+api.get('/auth/me', getMe);
+api.post('/auth/logout', logout);
 
 // ─── Stockfish helpers ────────────────────────────────────────────────────────
 function askStockfish(commands, timeoutMs = STOCKFISH_TIMEOUT_MS) {
@@ -151,7 +152,7 @@ function parseBestMove(output) {
 // ─── Stockfish API ────────────────────────────────────────────────────────────
 const computeRateLimiter = createComputeRateLimiter();
 
-app.post('/eval', computeRateLimiter, async (req, res) => {
+api.post('/eval', computeRateLimiter, async (req, res) => {
   const { fen } = req.body;
   const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
   if (!fen) return res.status(400).json({ error: 'FEN is required' });
@@ -164,7 +165,7 @@ app.post('/eval', computeRateLimiter, async (req, res) => {
   }
 });
 
-app.post('/bestmove', computeRateLimiter, async (req, res) => {
+api.post('/bestmove', computeRateLimiter, async (req, res) => {
   const { fen } = req.body;
   const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
   const skillLevel = parseIntegerInRange(req.body?.skillLevel, 20, 0, 20);
@@ -188,7 +189,7 @@ const polgarData = require('./data/polgar_puzzles.json');
 const endgames = require('./data/endgames.json');
 
 
-app.get('/puzzle/endgame', (req, res) => {
+api.get('/puzzle/endgame', (req, res) => {
   res.json(endgames[Math.floor(Math.random() * endgames.length)]);
 });
 
@@ -214,7 +215,7 @@ function calcSRS(existing, isSuccess) {
 }
 
 // ─── Polgar Puzzles ───────────────────────────────────────────────────────────
-app.get('/puzzle/polgar', requireAuth, (req, res) => {
+api.get('/puzzle/polgar', requireAuth, (req, res) => {
   const type = typeof req.query.type === 'string' ? req.query.type : '';
   const userId = req.user.id;
 
@@ -260,14 +261,14 @@ app.get('/puzzle/polgar', requireAuth, (req, res) => {
 
 // ─── Progress API ─────────────────────────────────────────────────────────────
 
-// GET /api/progress/due — puzzles due for review today
-app.get('/api/progress/due', requireAuth, (req, res) => {
+// GET /progress/due — puzzles due for review today
+api.get('/progress/due', requireAuth, (req, res) => {
   const due = getDueToday.all(req.user.id);
   res.json(due);
 });
 
-// GET /api/progress/all — full progress for stats page
-app.get('/api/progress/all', requireAuth, (req, res) => {
+// GET /progress/all — full progress for stats page
+api.get('/progress/all', requireAuth, (req, res) => {
   const all = getAllProgress.all(req.user.id);
   res.json(all);
 });
@@ -290,8 +291,8 @@ function persistProgressResult(userId, puzzleId, success) {
   return { nextDue };
 }
 
-// POST /api/progress/:puzzleId — record a puzzle result and update SRS
-app.post('/api/progress/:puzzleId', requireAuth, (req, res) => {
+// POST /progress/:puzzleId — record a puzzle result and update SRS
+api.post('/progress/:puzzleId', requireAuth, (req, res) => {
   const { puzzleId } = req.params;
   const { success } = req.body;
   const userId = req.user.id;
@@ -301,7 +302,7 @@ app.post('/api/progress/:puzzleId', requireAuth, (req, res) => {
 });
 
 // GET /puzzle/stats — summary stats for the logged-in user
-app.get('/puzzle/stats', requireAuth, (req, res) => {
+api.get('/puzzle/stats', requireAuth, (req, res) => {
   const all = getAllProgress.all(req.user.id);
   const totalAttempts = all.reduce((s, p) => s + p.attempts, 0);
   const totalSuccess  = all.reduce((s, p) => s + p.successes, 0);
@@ -327,13 +328,18 @@ app.get('/puzzle/stats', requireAuth, (req, res) => {
 });
 
 // Legacy endpoint — kept for backwards compat; now uses DB
-app.post('/puzzle/result', requireAuth, (req, res) => {
+api.post('/puzzle/result', requireAuth, (req, res) => {
   const { id, success } = req.body;
   const userId = req.user.id;
 
   persistProgressResult(userId, id, success);
   res.json({ ok: true });
 });
+
+// Accept both `/api/*` and legacy unprefixed routes so auth keeps working
+// regardless of proxy prefix-stripping behavior.
+app.use('/api', api);
+app.use(api);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (require.main === module) {
