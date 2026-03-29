@@ -38,6 +38,8 @@ Paste this (and edit):
 LETSENCRYPT_EMAIL=phuman911@gmail.com
 GITHUB_USERNAME=PavelHumeniuk
 DOMAIN=chess.phuman.me
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+JWT_SECRET=your-long-random-secret
 ```
 
 ### 4. GitHub Secrets

@@ -51,6 +51,8 @@ Create a `.env` file on your VPS:
 LETSENCRYPT_EMAIL=your-email@example.com
 GITHUB_USERNAME=your-github-username
 DOMAIN=chess.yourdomain.com
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+JWT_SECRET=your-long-random-secret
 ```
 
 ## 4. CI/CD Setup (GitHub Actions)

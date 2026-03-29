@@ -1,7 +1,6 @@
 require('dotenv').config({ quiet: true });
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const { spawn } = require('child_process');
 
 const { googleLogin, getMe, logout } = require('./auth');
@@ -62,7 +61,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(bodyParser.json());
+app.use(express.json());
 
 // ─── Auth Routes ─────────────────────────────────────────────────────────────
 api.post('/auth/google', googleLogin);
@@ -340,6 +339,15 @@ api.post('/puzzle/result', requireAuth, (req, res) => {
 // regardless of proxy prefix-stripping behavior.
 app.use('/api', api);
 app.use(api);
+
+app.use((err, _req, res, next) => {
+  if (res.headersSent) return next(err);
+
+  const status = Number(err.status || err.statusCode || 500);
+  const message = status >= 500 ? 'Internal Server Error' : (err.message || 'Request failed');
+  console.error('API error:', err);
+  return res.status(status).json({ error: message });
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (require.main === module) {

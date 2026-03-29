@@ -34,18 +34,26 @@ function setAuthCookie(res, token) {
  * verifies it, creates/fetches the user, and returns a JWT.
  */
 async function googleLogin(req, res) {
-  const { credential } = req.body;
-  if (!credential) {
-    return res.status(400).json({ error: 'Google credential is required' });
-  }
-
   try {
+    const credential = typeof req.body?.credential === 'string' ? req.body.credential : '';
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential is required' });
+    }
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.JWT_SECRET) {
+      console.error('Google auth misconfiguration: missing GOOGLE_CLIENT_ID or JWT_SECRET');
+      return res.status(500).json({ error: 'Authentication service misconfigured' });
+    }
+
     const ticket = await client.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
     const { sub: googleId, email, name, picture: avatar } = payload;
 
     const user = findOrCreateUser(googleId, email, name, avatar);

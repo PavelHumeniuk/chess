@@ -42,6 +42,29 @@ describe('backend auth and scheduling helpers', () => {
     expect(res.body).toEqual({ error: 'Google credential is required' });
   });
 
+  it('rejects missing request bodies without throwing HTML 500s', async () => {
+    const { googleLogin } = await import('../auth.js');
+    const req = {};
+    const res = createResponse();
+
+    await googleLogin(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({ error: 'Google credential is required' });
+  });
+
+  it('returns a clear 500 when auth env vars are missing', async () => {
+    delete process.env.GOOGLE_CLIENT_ID;
+    const { googleLogin } = await import('../auth.js');
+    const req = { body: { credential: 'token' } };
+    const res = createResponse();
+
+    await googleLogin(req, res);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toEqual({ error: 'Authentication service misconfigured' });
+  });
+
   it('reads auth token from cookies', async () => {
     const { readCookieToken } = await import('../auth.js');
     const req = {
