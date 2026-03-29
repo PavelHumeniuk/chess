@@ -17,6 +17,15 @@ const ENDGAME_LEVELS = [
     { value: 'experts', label: 'Expert' },
     { value: 'masters', label: 'Master' },
 ];
+const POLGAR_MATE_IN_TWO_CHUNKS = [
+    'Mate in Two: 307-806',
+    'Mate in Two: 807-1307',
+    'Mate in Two: 1308-1807',
+    'Mate in Two: 1808-2307',
+    'Mate in Two: 2308-2807',
+    'Mate in Two: 2808-3307',
+    'Mate in Two: 3308-4362',
+];
 
 function eloToSkill(elo: number): number {
     const normalized = Math.round((elo - MIN_BOT_ELO) / 100);
@@ -70,8 +79,8 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                                 Mate in 1
                             </button>
                             <button 
-                                className={`game-menu__button ${polgarType === 'Mate in Two' ? 'active' : ''}`}
-                                onClick={() => setPolgarType('Mate in Two')}
+                                className={`game-menu__button ${polgarType.startsWith('Mate in Two:') ? 'active' : ''}`}
+                                onClick={() => setPolgarType('Mate in Two: 307-806')}
                             >
                                 Mate in 2
                             </button>
@@ -89,6 +98,22 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                             </button>
                         </div>
                     </div>
+                    {polgarType.startsWith('Mate in Two:') && (
+                        <div className="game-menu__setting">
+                            <label>Mate in 2 chunk:</label>
+                            <div className="game-menu__options">
+                                {POLGAR_MATE_IN_TWO_CHUNKS.map((chunk) => (
+                                    <button
+                                        key={chunk}
+                                        className={`game-menu__button ${polgarType === chunk ? 'active' : ''}`}
+                                        onClick={() => setPolgarType(chunk)}
+                                    >
+                                        {chunk.replace('Mate in Two: ', '')}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

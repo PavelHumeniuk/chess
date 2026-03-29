@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import Board from './components/Board';
@@ -14,6 +14,7 @@ import {
   getStockfishBestMove,
   getPolgarPuzzle, 
   getEndgamePosition,
+  reportPuzzleResult,
 } from './engine/eval';
 import type { EndgamePosition } from './engine/eval';
 import type { Square, PieceType } from './engine/types';
@@ -70,6 +71,11 @@ function App() {
   const [stockfishEval, setStockfishEval] = useState<{ score: number, mate: number | null }>({ score: 0, mate: null });
   const [hintText, setHintText] = useState<string | null>(null);
   const [isHintLoading, setIsHintLoading] = useState(false);
+  const reportedEndgameResult = useRef<string | null>(null);
+
+  const sideToMoveFromFen = useCallback((fen: string): 'w' | 'b' => (
+    fen.split(' ')[1] === 'b' ? 'b' : 'w'
+  ), []);
 
   // Initial load
   useEffect(() => {
@@ -78,13 +84,15 @@ function App() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { puzzleFeedback, setPuzzleFeedback, puzzleStats, handlePuzzleMove } = usePuzzles({
+  const { puzzleFeedback, setPuzzleFeedback, puzzleStats, fetchPuzzleStats, handlePuzzleMove, isPuzzleReplying, isPuzzleResolved, resetPuzzleState } = usePuzzles({
     currentPuzzle,
     puzzleStep,
     setPuzzleStep,
     syncState,
     makeMove,
-    enabled: !!user && !loading,
+    enabled: !!user && !loading && (gameMode === 'polgar' || gameMode === 'endgame'),
+    kind: gameMode === 'endgame' ? 'endgame' : gameMode === 'polgar' ? 'polgar' : undefined,
+    game,
   });
 
   const onBotMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
@@ -140,6 +148,26 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [puzzleFeedback, setPuzzleFeedback]);
+
+  useEffect(() => {
+    reportedEndgameResult.current = null;
+  }, [endgameInfo?.id]);
+
+  useEffect(() => {
+    if (gameMode !== 'endgame' || !endgameInfo || !user) return;
+
+    const terminal = status.state === 'checkmate' || status.state === 'stalemate' || status.state === 'draw';
+    if (!terminal) return;
+
+    const reportKey = `${endgameInfo.id}:${status.state}:${status.state === 'checkmate' ? status.winner : 'none'}`;
+    if (reportedEndgameResult.current === reportKey) return;
+    reportedEndgameResult.current = reportKey;
+
+    const didWin = status.state === 'checkmate' && status.winner === playerColor;
+
+    setPuzzleFeedback(didWin ? '✅ Endgame solved. Added to your repetition stats.' : '❌ Endgame failed. Restart it and try again.');
+    void reportPuzzleResult(endgameInfo.id, didWin).then(() => fetchPuzzleStats());
+  }, [gameMode, endgameInfo, playerColor, status, user, setPuzzleFeedback, fetchPuzzleStats]);
 
   const handleSquareClick = useCallback(
     async (square: Square) => {
@@ -238,6 +266,8 @@ function App() {
     setHintText(null);
     setPuzzleStep(0);
     setEndgameInfo(null);
+    setCurrentPuzzle(null);
+    resetPuzzleState();
     
     if (mode === 'polgar') {
       if (polgarType) setSelectedPolgarType(polgarType);
@@ -246,7 +276,7 @@ function App() {
         if (puzzle) {
           setCurrentPuzzle(puzzle);
           loadGame(puzzle.fen);
-          setPlayerColor(game.turn());
+          setPlayerColor(sideToMoveFromFen(puzzle.fen));
           setHintText(null);
         }
       } catch (err) {
@@ -265,7 +295,6 @@ function App() {
         setHintText(null);
       }
     } else {
-      setCurrentPuzzle(null);
       setHintText(null);
       resetGame();
     }
@@ -286,10 +315,10 @@ function App() {
       if (puzzle) {
         setCurrentPuzzle(puzzle);
         setPuzzleStep(0);
-        setPuzzleFeedback(null);
+        resetPuzzleState();
         setHintText(null);
         loadGame(puzzle.fen);
-        setPlayerColor(game.turn());
+        setPlayerColor(sideToMoveFromFen(puzzle.fen));
       }
     } catch (err) {
       setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
@@ -306,12 +335,12 @@ function App() {
 
   const handleRestartTrainingPosition = useCallback(() => {
     setHintText(null);
-    setPuzzleFeedback(null);
     setPuzzleStep(0);
+    resetPuzzleState();
 
     if (gameMode === 'polgar' && currentPuzzle) {
       loadGame(currentPuzzle.fen);
-      setPlayerColor('w');
+      setPlayerColor(sideToMoveFromFen(currentPuzzle.fen));
       return;
     }
 
@@ -322,7 +351,7 @@ function App() {
     }
 
     resetGame();
-  }, [gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, setPuzzleFeedback]);
+  }, [gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, resetPuzzleState, sideToMoveFromFen]);
 
   const handleHint = useCallback(async () => {
     if (gameMode !== 'polgar' || !currentPuzzle) return;
@@ -359,6 +388,10 @@ function App() {
     return <LoginPage />;
   }
 
+  const isMateLinePuzzle = gameMode === 'polgar' && (currentPuzzle?.themes.includes('Mate in Two') || currentPuzzle?.themes.includes('Mate in Three'));
+  const isTrainingLocked = (isMateLinePuzzle && (isPuzzleReplying || isPuzzleResolved || game.turn() !== playerColor))
+    || ((gameMode === 'bot' || gameMode === 'endgame') && game.turn() !== playerColor);
+
   return (
     <div className="app">
       <header className="app__header">
@@ -393,6 +426,7 @@ function App() {
               <div style={{ position: 'relative' }}>
                 <GameStatus status={status} />
                 {isBotThinking && <div className="bot-thinking">🤖 Stockfish is thinking...</div>}
+                {isPuzzleReplying && <div className="bot-thinking">🤖 Stockfish is choosing Black&apos;s defense...</div>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'row' }}>
                 <EvalBar score={stockfishEval} show={showEval} />
@@ -403,8 +437,8 @@ function App() {
                   lastMove={lastMove}
                   kingInCheck={getKingInCheckSquare()}
                   isFlipped={gameMode === 'pvp' ? game.turn() === 'b' : playerColor === 'b'}
-                  onSquareClick={(sq) => ((gameMode === 'bot' || gameMode === 'endgame') && game.turn() !== playerColor && !isBotThinking) ? null : handleSquareClick(sq)}
-                  onDropPiece={(s, t) => ((gameMode === 'bot' || gameMode === 'endgame') && game.turn() !== playerColor && !isBotThinking) ? null : handleDrop(s, t)}
+                  onSquareClick={(sq) => isTrainingLocked ? null : handleSquareClick(sq)}
+                  onDropPiece={(s, t) => isTrainingLocked ? null : handleDrop(s, t)}
                 />
               </div>
               <div className="app__controls-container">
@@ -414,6 +448,7 @@ function App() {
                       isGameOver={game.isGameOver()} 
                       showEval={showEval}
                       onToggleEval={handleToggleEval}
+                      restartMode={gameMode === 'polgar' || gameMode === 'endgame'}
                       restartLabel={gameMode === 'endgame' ? '🔄 Restart Endgame' : gameMode === 'polgar' ? '🔄 Restart Puzzle' : '🎮 New Game'}
                   />
                   { (gameMode === 'polgar' || gameMode === 'endgame') && (
@@ -435,17 +470,24 @@ function App() {
             <aside className="app__sidebar">
               {endgameInfo && (
                 <div className="endgame-info">
-                  <h3>{endgameInfo.name}</h3>
+                  <h3>Endgame Description</h3>
+                  <p><strong>{endgameInfo.name}</strong></p>
                   <p><strong>{endgameInfo.levelLabel}</strong></p>
                   <p>{endgameInfo.chapter}</p>
                   <p>{endgameInfo.description}</p>
+                </div>
+              )}
+              {!endgameInfo && gameMode === 'endgame' && (
+                <div className="endgame-info">
+                  <h3>Endgame Description</h3>
+                  <p>Loading endgame description...</p>
                 </div>
               )}
               {puzzleStats && (
                 <div className="endgame-info statistics-card">
                   <h3>Statistics</h3>
                   <div className="stats-grid">
-                    {currentPuzzle?.categoryTotal !== undefined && (
+                    {gameMode === 'polgar' && currentPuzzle?.categoryTotal !== undefined && (
                       <div className="stat-item highlight">
                         <span className="stat-label">🎯 Category Progress</span>
                         <span className="stat-value">{currentPuzzle.categoryTotal - (currentPuzzle.categoryRemaining || 0)} / {currentPuzzle.categoryTotal}</span>
@@ -461,6 +503,24 @@ function App() {
                       <div className="stat-item">
                         <span className="stat-label">🔢 Puzzle #</span>
                         <span className="stat-value">{currentPuzzle.id}</span>
+                      </div>
+                    )}
+                    {gameMode === 'endgame' && endgameInfo?.categoryTotal !== undefined && (
+                      <div className="stat-item highlight">
+                        <span className="stat-label">🎯 Level Progress</span>
+                        <span className="stat-value">{endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)} / {endgameInfo.categoryTotal}</span>
+                        <div className="category-progress-bar">
+                          <div
+                            className="category-progress-fill"
+                            style={{ width: `${((endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)) / endgameInfo.categoryTotal) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {gameMode === 'endgame' && endgameInfo && (
+                      <div className="stat-item">
+                        <span className="stat-label">🗂 Level</span>
+                        <span className="stat-value">{endgameInfo.levelLabel}</span>
                       </div>
                     )}
                     <div className="stat-item">

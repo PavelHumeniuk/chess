@@ -60,6 +60,8 @@ export interface EndgamePosition {
   level: string;
   levelLabel: string;
   chapter: string;
+  categoryRemaining?: number;
+  categoryTotal?: number;
   name: string;
   fen: string;
   side: 'w' | 'b';
@@ -132,9 +134,10 @@ export async function reportPuzzleResult(id: string, success: boolean): Promise<
   }
 }
 
-export async function getPuzzleStats(): Promise<PuzzleStats | null> {
+export async function getPuzzleStats(kind?: 'polgar' | 'endgame'): Promise<PuzzleStats | null> {
   try {
-    const response = await fetch(apiUrl('/puzzle/stats'), { headers: authHeaders(), credentials: 'include' });
+    const query = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+    const response = await fetch(apiUrl(`/puzzle/stats${query}`), { headers: authHeaders(), credentials: 'include' });
     return await parseJsonOrThrow(response) as PuzzleStats;
   } catch (error) {
     console.error('Error fetching puzzle stats:', error);

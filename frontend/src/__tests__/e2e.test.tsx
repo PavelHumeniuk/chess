@@ -125,6 +125,8 @@ describe('End-to-End Game Scenarios', () => {
             expect(evalEngine.getEndgamePosition).toHaveBeenCalledWith('class_b');
         });
 
+        expect(screen.getByText('Endgame Description')).toBeInTheDocument();
+        expect(screen.getAllByText('Beginners to Class D (<1400)')).toHaveLength(2);
         expect(screen.getByText('King and Queen vs King')).toBeInTheDocument();
         expect(screen.getByText('Checkmate with King and Queen')).toBeInTheDocument();
     });
@@ -150,10 +152,41 @@ describe('End-to-End Game Scenarios', () => {
             expect(screen.getByTestId('game-status')).toHaveTextContent('Checkmate');
         });
 
+        await waitFor(() => {
+            expect(evalEngine.reportPuzzleResult).toHaveBeenCalledWith('end-loss', false);
+        });
+
         fireEvent.click(screen.getByTestId('new-game-button'));
 
         expect(screen.queryByText('Select Game Mode')).not.toBeInTheDocument();
         expect(screen.getByText('Lost Endgame')).toBeInTheDocument();
+    });
+
+    it('Game 7c: Endgame restart button keeps you in the same active endgame', async () => {
+        (evalEngine.getEndgamePosition as Mock)
+            .mockResolvedValueOnce({
+                id: 'end-active',
+                level: 'class_b',
+                levelLabel: 'Class B (1600-1799)',
+                chapter: 'Connected Passers',
+                name: 'Active Endgame',
+                fen: '4k3/8/8/8/8/8/4K3/7R w - - 0 1',
+                side: 'w',
+                description: 'An active endgame to restart.',
+            });
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        startGame();
+
+        await waitFor(() => {
+            expect(screen.getByText('Active Endgame')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTestId('new-game-button'));
+
+        expect(screen.queryByText('Select Game Mode')).not.toBeInTheDocument();
+        expect(screen.getByText('Active Endgame')).toBeInTheDocument();
     });
 
     it('Game 8: Polgar Puzzle Mode and Solve', async () => {
@@ -171,6 +204,86 @@ describe('End-to-End Game Scenarios', () => {
 
         expect(screen.getByText(/Correct!/i)).toBeInTheDocument();
         expect(screen.getByText('Next Puzzle ➡️')).toBeInTheDocument();
+    });
+
+    it('Game 8b: Polgar mate-in-two supports chunk selection', async () => {
+        render(<App />);
+        fireEvent.click(screen.getByText('Polgar'));
+        fireEvent.click(screen.getByText('Mate in 2'));
+        fireEvent.click(screen.getByText('1308-1807'));
+        startGame();
+
+        await waitFor(() => {
+            expect(evalEngine.getPolgarPuzzle).toHaveBeenCalledWith('Mate in Two: 1308-1807');
+        });
+    });
+
+    it('Game 8c: Mate-in-two uses Stockfish for the reply after the first move', async () => {
+        (evalEngine.getPolgarPuzzle as Mock).mockResolvedValueOnce({
+            id: 'polgar-m2',
+            fen: '3k4/8/8/8/8/8/1Q6/3K4 w - - 0 1',
+            moves: [],
+            solution: ['b2b5', 'b5b8'],
+            rating: 1000,
+            themes: ['Mate in Two', 'polgar'],
+            categoryRemaining: 500,
+            categoryTotal: 500,
+        });
+        (evalEngine.getStockfishBestMove as Mock).mockResolvedValueOnce('d8c8');
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Polgar'));
+        fireEvent.click(screen.getByText('Mate in 2'));
+        startGame();
+
+        await waitFor(() => {
+            expect(evalEngine.getPolgarPuzzle).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByTestId('square-b2'));
+        fireEvent.click(screen.getByTestId('square-b5'));
+
+        await waitFor(() => {
+            expect(evalEngine.getStockfishBestMove).toHaveBeenCalled();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText(/Find mate in 1/i)).toBeInTheDocument();
+        });
+    });
+
+    it('Game 8d: Mate-in-three uses Stockfish replies between White moves', async () => {
+        (evalEngine.getPolgarPuzzle as Mock).mockResolvedValueOnce({
+            id: 'polgar-m3',
+            fen: '3k4/8/8/8/8/8/1Q6/3K4 w - - 0 1',
+            moves: [],
+            solution: ['b2b5', 'b5b8', 'b8d6'],
+            rating: 1000,
+            themes: ['Mate in Three', 'polgar'],
+            categoryRemaining: 100,
+            categoryTotal: 100,
+        });
+        (evalEngine.getStockfishBestMove as Mock).mockResolvedValueOnce('d8c8');
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Polgar'));
+        fireEvent.click(screen.getByText('Mate in 3'));
+        startGame();
+
+        await waitFor(() => {
+            expect(evalEngine.getPolgarPuzzle).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByTestId('square-b2'));
+        fireEvent.click(screen.getByTestId('square-b5'));
+
+        await waitFor(() => {
+            expect(evalEngine.getStockfishBestMove).toHaveBeenCalled();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText(/Find mate in 2/i)).toBeInTheDocument();
+        });
     });
 
     it('Game 9: Polgar Puzzle Nothing to Review Feedback', async () => {

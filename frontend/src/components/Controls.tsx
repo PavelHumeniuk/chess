@@ -8,6 +8,7 @@ interface ControlsProps {
     showEval: boolean;
     onToggleEval: () => void;
     restartLabel?: string;
+    restartMode?: boolean;
 }
 
 const Controls: React.FC<ControlsProps> = ({ 
@@ -17,15 +18,16 @@ const Controls: React.FC<ControlsProps> = ({
     showEval, 
     onToggleEval,
     restartLabel = '🔄 Restart',
+    restartMode = false,
 }) => {
     return (
         <div className="controls" data-testid="controls">
             <button
                 className={`controls__button ${isGameOver ? 'controls__button--pulse' : ''}`}
-                onClick={isGameOver ? onRestartPosition : onNewGame}
+                onClick={restartMode ? onRestartPosition : (isGameOver ? onRestartPosition : onNewGame)}
                 data-testid="new-game-button"
             >
-                {isGameOver ? restartLabel : '🔄 Restart'}
+                {restartMode || isGameOver ? restartLabel : '🔄 Restart'}
             </button>
             <button
                 className="controls__button"

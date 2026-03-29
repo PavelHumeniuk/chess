@@ -192,15 +192,40 @@ const polgarData = require('./data/polgar_puzzles.json');
 const endgames = require('./data/endgames.json');
 
 
-api.get('/puzzle/endgame', (req, res) => {
+api.get('/puzzle/endgame', requireAuth, (req, res) => {
   const level = typeof req.query.level === 'string' ? req.query.level : '';
+  const userId = req.user.id;
   const filtered = level ? endgames.filter(position => position.level === level) : endgames;
 
   if (filtered.length === 0) {
     return res.status(404).json({ error: 'No endgame positions found for that level.' });
   }
 
-  res.json(filtered[Math.floor(Math.random() * filtered.length)]);
+  const progress = getAllProgress.all(userId).filter(p => p.puzzle_id.startsWith('endgame-'));
+  const seenIds = new Set(progress.map(p => p.puzzle_id));
+  const dueIds = new Set(getDueToday(userId).map(p => p.puzzle_id));
+
+  let pool = filtered.filter(position => dueIds.has(position.id));
+  if (pool.length === 0) {
+    pool = filtered.filter(position => !seenIds.has(position.id));
+  }
+  if (pool.length === 0) {
+    pool = filtered;
+  }
+
+  const choice = pool[Math.floor(Math.random() * pool.length)];
+  const levelTotal = endgames.filter(position => position.level === choice.level).length;
+  const levelSeen = new Set(
+    progress
+      .filter(p => endgames.some(position => position.id === p.puzzle_id && position.level === choice.level))
+      .map(p => p.puzzle_id)
+  );
+
+  res.json({
+    ...choice,
+    categoryRemaining: Math.max(levelTotal - levelSeen.size, 0),
+    categoryTotal: levelTotal,
+  });
 });
 
 // ─── SRS helpers (using DB) ───────────────────────────────────────────────────
@@ -228,6 +253,7 @@ function calcSRS(existing, isSuccess) {
 api.get('/puzzle/polgar', requireAuth, (req, res) => {
   const type = typeof req.query.type === 'string' ? req.query.type : '';
   const userId = req.user.id;
+  const mateInTwoChunkMatch = type.match(/^Mate in Two: (\d+)-(\d+)$/);
 
   let filtered = polgarData.problems;
 
@@ -242,6 +268,13 @@ api.get('/puzzle/polgar', requireAuth, (req, res) => {
       return res.status(404).json({ error: 'No puzzles due for review!' });
     }
     filtered = filtered.filter(p => dueIds.has(`polgar-${p.problemid}`));
+  } else if (mateInTwoChunkMatch) {
+    const start = Number.parseInt(mateInTwoChunkMatch[1], 10);
+    const end = Number.parseInt(mateInTwoChunkMatch[2], 10);
+    filtered = filtered
+      .filter(p => p.type === 'Mate in Two')
+      .filter(p => Number(p.problemid) >= start && Number(p.problemid) <= end)
+      .filter(p => !seenIds.has(`polgar-${p.problemid}`));
   } else if (type) {
     filtered = filtered
       .filter(p => p.type.toLowerCase().includes(type.toLowerCase()))
@@ -263,6 +296,13 @@ api.get('/puzzle/polgar', requireAuth, (req, res) => {
     categoryRemaining: filtered.length,
     categoryTotal: type === 'Review Due'
       ? filtered.length
+      : mateInTwoChunkMatch
+        ? polgarData.problems.filter(prob => {
+          const id = Number(prob.problemid);
+          return prob.type === 'Mate in Two'
+            && id >= Number.parseInt(mateInTwoChunkMatch[1], 10)
+            && id <= Number.parseInt(mateInTwoChunkMatch[2], 10);
+        }).length
       : type
         ? polgarData.problems.filter(prob => prob.type.toLowerCase().includes(type.toLowerCase())).length
         : polgarData.problems.length,
@@ -313,7 +353,9 @@ api.post('/progress/:puzzleId', requireAuth, (req, res) => {
 
 // GET /puzzle/stats — summary stats for the logged-in user
 api.get('/puzzle/stats', requireAuth, (req, res) => {
-  const all = getAllProgress.all(req.user.id);
+  const kind = typeof req.query.kind === 'string' ? req.query.kind : '';
+  const prefix = kind === 'polgar' ? 'polgar-' : kind === 'endgame' ? 'endgame-' : '';
+  const all = getAllProgress.all(req.user.id).filter(progress => !prefix || progress.puzzle_id.startsWith(prefix));
   const totalAttempts = all.reduce((s, p) => s + p.attempts, 0);
   const totalSuccess  = all.reduce((s, p) => s + p.successes, 0);
 

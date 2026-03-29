@@ -53,6 +53,28 @@ describe('eval', () => {
     expect(stats).toBeNull();
   });
 
+  it('includes the requested stats kind in the request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        totalPuzzlesTouched: 1,
+        totalAttempts: 1,
+        successRate: '100.0',
+        dueReviewCount: 0,
+        forecast: {},
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPuzzleStats('endgame');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/puzzle/stats?kind=endgame'),
+      expect.any(Object),
+    );
+  });
+
   it('includes the selected endgame level in the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

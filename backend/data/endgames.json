@@ -1,6 +1,6 @@
 [
   {
-    "id": "silman-bd-1",
+    "id": "endgame-silman-bd-1",
     "level": "beginner_class_d",
     "levelLabel": "Beginners to Class D (<1400)",
     "chapter": "The Staircase",
@@ -10,7 +10,7 @@
     "description": "Use the classic ladder pattern with two rooks to box the king in and finish the mate."
   },
   {
-    "id": "silman-bd-2",
+    "id": "endgame-silman-bd-2",
     "level": "beginner_class_d",
     "levelLabel": "Beginners to Class D (<1400)",
     "chapter": "Queen vs. Lone King",
@@ -20,17 +20,17 @@
     "description": "Drive the king to the edge with the queen and bring your king closer for the final mate."
   },
   {
-    "id": "silman-bd-3",
+    "id": "endgame-silman-bd-3",
     "level": "beginner_class_d",
     "levelLabel": "Beginners to Class D (<1400)",
     "chapter": "Basic Opposition",
     "name": "Win The Opposition",
-    "fen": "8/8/8/3k4/3P4/3K4/8/8 w - - 0 1",
+    "fen": "8/8/3k4/8/3PK3/8/8/8 w - - 0 1",
     "side": "w",
     "description": "Take the opposition first, then escort the pawn through."
   },
   {
-    "id": "silman-bd-4",
+    "id": "endgame-silman-bd-4",
     "level": "beginner_class_d",
     "levelLabel": "Beginners to Class D (<1400)",
     "chapter": "The Square Of The Pawn",
@@ -40,7 +40,7 @@
     "description": "Calculate the square and decide whether the pawn can outrun the enemy king."
   },
   {
-    "id": "silman-c-1",
+    "id": "endgame-silman-c-1",
     "level": "class_c",
     "levelLabel": "Class C (1400-1599)",
     "chapter": "King And Pawn vs. Lone King",
@@ -50,7 +50,7 @@
     "description": "Use the key-square method to decide whether the pawn ending is won."
   },
   {
-    "id": "silman-c-2",
+    "id": "endgame-silman-c-2",
     "level": "class_c",
     "levelLabel": "Class C (1400-1599)",
     "chapter": "King And Pawn vs. Lone King",
@@ -60,7 +60,7 @@
     "description": "A pure king-and-pawn ending where one tempo decides everything."
   },
   {
-    "id": "silman-c-3",
+    "id": "endgame-silman-c-3",
     "level": "class_c",
     "levelLabel": "Class C (1400-1599)",
     "chapter": "Lucena Position",
@@ -70,7 +70,7 @@
     "description": "The winning rook ending: shield your king and queen the pawn."
   },
   {
-    "id": "silman-c-4",
+    "id": "endgame-silman-c-4",
     "level": "class_c",
     "levelLabel": "Class C (1400-1599)",
     "chapter": "Philidor Position",
@@ -80,7 +80,7 @@
     "description": "Defend the rook ending by cutting the king off before the pawn reaches the sixth rank."
   },
   {
-    "id": "silman-b-1",
+    "id": "endgame-silman-b-1",
     "level": "class_b",
     "levelLabel": "Class B (1600-1799)",
     "chapter": "King And Two Healthy Pawns vs. Lone King (Connected)",
@@ -90,7 +90,7 @@
     "description": "Connected passed pawns are powerful. Coordinate king and pawns to force promotion."
   },
   {
-    "id": "silman-b-2",
+    "id": "endgame-silman-b-2",
     "level": "class_b",
     "levelLabel": "Class B (1600-1799)",
     "chapter": "King And Two Healthy Pawns vs. Lone King (Separated)",
@@ -100,7 +100,7 @@
     "description": "Use the distance between pawns to stretch the king and create a breakthrough."
   },
   {
-    "id": "silman-b-3",
+    "id": "endgame-silman-b-3",
     "level": "class_b",
     "levelLabel": "Class B (1600-1799)",
     "chapter": "King And Two Healthy Pawns vs. Lone King (Separated)",
@@ -110,7 +110,7 @@
     "description": "Use the outside passer as a decoy, then invade on the other wing."
   },
   {
-    "id": "silman-b-4",
+    "id": "endgame-silman-b-4",
     "level": "class_b",
     "levelLabel": "Class B (1600-1799)",
     "chapter": "Breakthroughs",
@@ -120,7 +120,7 @@
     "description": "Calculate the forcing pawn break that creates an unstoppable passer."
   },
   {
-    "id": "silman-a-1",
+    "id": "endgame-silman-a-1",
     "level": "class_a",
     "levelLabel": "Class A (1800-1999)",
     "chapter": "Strange Races",
@@ -130,7 +130,7 @@
     "description": "A pure pawn race where exact move order decides whether you queen in time."
   },
   {
-    "id": "silman-a-2",
+    "id": "endgame-silman-a-2",
     "level": "class_a",
     "levelLabel": "Class A (1800-1999)",
     "chapter": "Trebuchet",
@@ -140,7 +140,7 @@
     "description": "One side must abandon the pawn. Find the winning zugzwang idea."
   },
   {
-    "id": "silman-a-3",
+    "id": "endgame-silman-a-3",
     "level": "class_a",
     "levelLabel": "Class A (1800-1999)",
     "chapter": "Triangulation",
@@ -150,7 +150,7 @@
     "description": "Use triangulation to hand the move back to your opponent in the critical position."
   },
   {
-    "id": "silman-a-4",
+    "id": "endgame-silman-a-4",
     "level": "class_a",
     "levelLabel": "Class A (1800-1999)",
     "chapter": "Breakthroughs",
@@ -160,7 +160,7 @@
     "description": "Find the forcing breakthrough sequence that leaves one pawn free to run."
   },
   {
-    "id": "silman-e-1",
+    "id": "endgame-silman-e-1",
     "level": "experts",
     "levelLabel": "Experts (2000-2199)",
     "chapter": "Building Blocks",
@@ -170,7 +170,7 @@
     "description": "Convert a king-and-pawn edge by using the right building-block geometry."
   },
   {
-    "id": "silman-e-2",
+    "id": "endgame-silman-e-2",
     "level": "experts",
     "levelLabel": "Experts (2000-2199)",
     "chapter": "Building Blocks",
@@ -180,7 +180,7 @@
     "description": "Keep a reserve tempo and exploit the winning waiting move."
   },
   {
-    "id": "silman-m-1",
+    "id": "endgame-silman-m-1",
     "level": "masters",
     "levelLabel": "Masters (2200-2399)",
     "chapter": "Cat And Mouse",
@@ -190,7 +190,7 @@
     "description": "A razor-thin king-and-pawn ending where every tempo is poison."
   },
   {
-    "id": "silman-m-2",
+    "id": "endgame-silman-m-2",
     "level": "masters",
     "levelLabel": "Masters (2200-2399)",
     "chapter": "Cat And Mouse",
