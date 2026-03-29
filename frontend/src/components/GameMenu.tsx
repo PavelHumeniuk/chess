@@ -7,10 +7,18 @@ interface GameMenuProps {
     onStartGame: (mode: GameMode, playerColor: 'w' | 'b', skillLevel: number, polgarType?: string) => void;
 }
 
+const MIN_BOT_ELO = 800;
+const MAX_BOT_ELO = 2800;
+
+function eloToSkill(elo: number): number {
+    const normalized = Math.round((elo - MIN_BOT_ELO) / 100);
+    return Math.max(0, Math.min(20, normalized));
+}
+
 const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
     const [mode, setMode] = React.useState<GameMode>('pvp');
     const [playerColor, setPlayerColor] = React.useState<'w' | 'b'>('w');
-    const [skillLevel, setSkillLevel] = React.useState(10);
+    const [botElo, setBotElo] = React.useState(1800);
     const [polgarType, setPolgarType] = React.useState('Mate in One');
 
     return (
@@ -96,13 +104,14 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                     </div>
                     
                     <div className="game-menu__setting">
-                        <label>Skill Level (0-20): {skillLevel}</label>
+                        <label>Bot ELO (approx): {botElo}</label>
                         <input 
                             type="range" 
-                            min="0" 
-                            max="20" 
-                            value={skillLevel} 
-                            onChange={(e) => setSkillLevel(Number(e.target.value))}
+                            min={MIN_BOT_ELO}
+                            max={MAX_BOT_ELO}
+                            step="100"
+                            value={botElo}
+                            onChange={(e) => setBotElo(Number(e.target.value))}
                             className="game-menu__slider"
                         />
                     </div>
@@ -111,7 +120,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
 
             <button 
                 className="game-menu__start-btn"
-                onClick={() => onStartGame(mode, playerColor, skillLevel, polgarType)}
+                onClick={() => onStartGame(mode, playerColor, eloToSkill(botElo), polgarType)}
             >
                 Start Game
             </button>
