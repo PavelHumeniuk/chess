@@ -40,6 +40,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - DOMAIN=${DOMAIN}
       - JWT_SECRET=${JWT_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     volumes:

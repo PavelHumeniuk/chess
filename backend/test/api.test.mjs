@@ -97,4 +97,13 @@ describe('backend auth and scheduling helpers', () => {
     expect(isDueDate('2026-03-29T10:00:00.000Z', now)).toBe(true);
     expect(isDueDate('2026-03-29T23:00:00.000Z', now)).toBe(false);
   });
+
+  it('includes the production domain in default CORS origins', async () => {
+    process.env.DOMAIN = 'chess.phuman.me';
+    const appModule = await import('../index.js');
+    const app = appModule.default || appModule;
+    const corsLayer = app._router.stack.find(layer => layer.name === 'corsMiddleware');
+
+    expect(corsLayer).toBeTruthy();
+  });
 });

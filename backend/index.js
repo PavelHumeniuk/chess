@@ -17,7 +17,11 @@ const api = express.Router();
 const port = process.env.PORT || 3001;
 const STOCKFISH_PATH = process.env.STOCKFISH_PATH || 'stockfish';
 const STOCKFISH_TIMEOUT_MS = Number(process.env.STOCKFISH_TIMEOUT_MS || 8000);
-const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...(process.env.DOMAIN ? [`https://${process.env.DOMAIN}`] : []),
+];
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map(v => v.trim())
