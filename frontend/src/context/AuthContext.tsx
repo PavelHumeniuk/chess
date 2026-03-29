@@ -3,6 +3,25 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
 
+async function parseApiResponse<T>(res: Response): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  const body = isJson ? await res.json() : await res.text();
+
+  if (!res.ok) {
+    if (isJson && typeof body === 'object' && body && 'error' in body) {
+      throw new Error(String((body as { error?: string }).error || 'Request failed'));
+    }
+    throw new Error(`Request failed (${res.status}). Check API routing for ${API_BASE}.`);
+  }
+
+  if (!isJson) {
+    throw new Error('API returned non-JSON response. Check reverse proxy /api routing.');
+  }
+
+  return body as T;
+}
+
 export interface AuthUser {
   id: number;
   email: string;
@@ -28,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetch(`${API_BASE}/auth/me`, {
       credentials: 'include',
     })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then(r => parseApiResponse<{ user: AuthUser }>(r))
       .then(({ user }) => setUser(user))
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
@@ -41,11 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credentials: 'include',
       body: JSON.stringify({ credential }),
     });
-    if (!res.ok) {
-      const { error } = await res.json();
-      throw new Error(error || 'Login failed');
-    }
-    const { user } = await res.json();
+    const { user } = await parseApiResponse<{ user: AuthUser }>(res);
     setUser(user);
   }, []);
 
