@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { reportPuzzleResult, getPuzzleStats, getStockfishBestMove } from '../engine/eval';
 import type { Puzzle, PuzzleStats } from '../engine/eval';
 import type { ChessGame } from '../engine/ChessGame';
@@ -16,6 +16,7 @@ interface PuzzleProps {
   enabled: boolean;
   kind?: 'polgar' | 'endgame';
   game: ChessGame;
+  sessionKey: number;
 }
 
 export function usePuzzles({ 
@@ -27,11 +28,17 @@ export function usePuzzles({
   enabled,
   kind,
   game,
+  sessionKey,
 }: PuzzleProps) {
   const [puzzleFeedback, setPuzzleFeedback] = useState<string | null>(null);
   const [puzzleStats, setPuzzleStats] = useState<PuzzleStats | null>(null);
   const [isPuzzleReplying, setIsPuzzleReplying] = useState(false);
   const [isPuzzleResolved, setIsPuzzleResolved] = useState(false);
+  const sessionKeyRef = useRef(sessionKey);
+
+  useEffect(() => {
+    sessionKeyRef.current = sessionKey;
+  }, [sessionKey]);
 
   const fetchPuzzleStats = useCallback(async () => {
     if (!enabled) {
@@ -93,7 +100,15 @@ export function usePuzzles({
 
       setIsPuzzleReplying(true);
       setPuzzleFeedback('🤖 Stockfish is choosing Black\'s best defense...');
-      const bestMoveUci = await getStockfishBestMove(game.fen(), TRAINING_REPLY_DEPTH, TRAINING_REPLY_SKILL);
+      const replyFen = game.fen();
+      const replySession = sessionKeyRef.current;
+      const bestMoveUci = await getStockfishBestMove(replyFen, TRAINING_REPLY_DEPTH, TRAINING_REPLY_SKILL);
+      if (sessionKeyRef.current !== replySession || game.fen() !== replyFen) {
+        if (sessionKeyRef.current === replySession) {
+          setIsPuzzleReplying(false);
+        }
+        return;
+      }
       if (!bestMoveUci) {
         setIsPuzzleReplying(false);
         setPuzzleFeedback('❌ Could not evaluate Black reply. Please restart.');
@@ -103,6 +118,9 @@ export function usePuzzles({
         return;
       }
 
+      if (sessionKeyRef.current !== replySession) {
+        return;
+      }
       const replyResult = makeMove(
         bestMoveUci.slice(0, 2) as Square,
         bestMoveUci.slice(2, 4) as Square,

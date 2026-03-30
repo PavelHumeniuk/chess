@@ -74,10 +74,21 @@ function App() {
   const [isHintLoading, setIsHintLoading] = useState(false);
   const [showEndgameTheory, setShowEndgameTheory] = useState(false);
   const reportedEndgameResult = useRef<string | null>(null);
+  const activeSessionRef = useRef(0);
+  const [sessionKey, setSessionKey] = useState(0);
 
   const sideToMoveFromFen = useCallback((fen: string): 'w' | 'b' => (
     fen.split(' ')[1] === 'b' ? 'b' : 'w'
   ), []);
+
+  const beginSession = useCallback(() => {
+    const next = activeSessionRef.current + 1;
+    activeSessionRef.current = next;
+    setSessionKey(next);
+    return next;
+  }, []);
+
+  const isSessionCurrent = useCallback((key: number) => activeSessionRef.current === key, []);
 
   // Initial load
   useEffect(() => {
@@ -92,9 +103,10 @@ function App() {
     setPuzzleStep,
     syncState,
     makeMove,
-    enabled: !!user && !loading && (gameMode === 'polgar' || gameMode === 'endgame'),
+    enabled: !!user && !loading && !isSetup && (gameMode === 'polgar' || gameMode === 'endgame'),
     kind: gameMode === 'endgame' ? 'endgame' : gameMode === 'polgar' ? 'polgar' : undefined,
     game,
+    sessionKey,
   });
 
   const onBotMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
@@ -111,7 +123,8 @@ function App() {
     playerColor,
     skillLevel,
     positionKey: game.fen(),
-    onBotMove
+    onBotMove,
+    sessionKey,
   });
 
   // Persistence: Save state
@@ -261,6 +274,7 @@ function App() {
   );
 
   const handleStartGame = async (mode: GameMode, color: 'w' | 'b', level: number, polgarType?: string) => {
+    const session = beginSession();
     setGameMode(mode);
     setPlayerColor(color);
     setSkillLevel(level);
@@ -276,6 +290,7 @@ function App() {
       if (polgarType) setSelectedPolgarType(polgarType);
       try {
         const puzzle = await getPolgarPuzzle(polgarType);
+        if (!isSessionCurrent(session)) return;
         if (puzzle) {
           setCurrentPuzzle(puzzle);
           loadGame(puzzle.fen);
@@ -283,6 +298,7 @@ function App() {
           setHintText(null);
         }
       } catch (err) {
+        if (!isSessionCurrent(session)) return;
         setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
         setIsSetup(true); // Go back to menu
         return;
@@ -292,11 +308,13 @@ function App() {
       setSelectedEndgameLevel(endgameLevel);
       try {
         const endgame = await getEndgamePosition(endgameLevel);
+        if (!isSessionCurrent(session)) return;
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
         setPlayerColor(endgame.side);
         setHintText(null);
       } catch (err) {
+        if (!isSessionCurrent(session)) return;
         setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching endgame'}`);
         setIsSetup(true);
         return;
@@ -308,13 +326,19 @@ function App() {
   };
 
   const handleNextPuzzle = async () => {
+    const session = beginSession();
+    resetPuzzleState();
+    setHintText(null);
+
     if (gameMode === 'endgame') {
       try {
         const endgame = await getEndgamePosition(selectedEndgameLevel);
+        if (!isSessionCurrent(session)) return;
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
         setPlayerColor(endgame.side);
       } catch (err) {
+        if (!isSessionCurrent(session)) return;
         setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching endgame'}`);
         setIsSetup(true);
       }
@@ -322,6 +346,7 @@ function App() {
     }
     try {
       const puzzle = await getPolgarPuzzle(selectedPolgarType);
+      if (!isSessionCurrent(session)) return;
       if (puzzle) {
         setCurrentPuzzle(puzzle);
         setPuzzleStep(0);
@@ -331,19 +356,23 @@ function App() {
         setPlayerColor(sideToMoveFromFen(puzzle.fen));
       }
     } catch (err) {
+      if (!isSessionCurrent(session)) return;
       setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching puzzle'}`);
       setIsSetup(true);
     }
   };
 
   const handleNewGame = useCallback(() => {
+    beginSession();
+    resetPuzzleState();
     setIsSetup(true);
     setHintText(null);
     clearState();
     resetGame();
-  }, [clearState, resetGame]);
+  }, [beginSession, clearState, resetGame, resetPuzzleState]);
 
   const handleRestartTrainingPosition = useCallback(() => {
+    beginSession();
     setHintText(null);
     setPuzzleStep(0);
     resetPuzzleState();
@@ -361,7 +390,7 @@ function App() {
     }
 
     resetGame();
-  }, [gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, resetPuzzleState, sideToMoveFromFen]);
+  }, [beginSession, gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, resetPuzzleState, sideToMoveFromFen]);
 
   const handleHint = useCallback(async () => {
     if (gameMode !== 'polgar' || !currentPuzzle) return;
@@ -390,9 +419,18 @@ function App() {
   }, []);
 
   const handleLogout = useCallback(() => {
+    beginSession();
+    resetPuzzleState();
     clearState();
     logout();
-  }, [clearState, logout]);
+  }, [beginSession, clearState, logout, resetPuzzleState]);
+
+  const handleBackToMenu = useCallback(() => {
+    beginSession();
+    resetPuzzleState();
+    setHintText(null);
+    setIsSetup(true);
+  }, [beginSession, resetPuzzleState]);
 
   if (loading) {
     return <div className="app-loading">Loading…</div>;
@@ -414,7 +452,7 @@ function App() {
         <h1 className="app__title">♔ Chess</h1>
         <div className="app__header-right">
           {!isSetup && (
-            <button className="back-to-menu-btn" onClick={() => setIsSetup(true)}>
+            <button className="back-to-menu-btn" onClick={handleBackToMenu}>
               ⬅️ Menu
             </button>
           )}

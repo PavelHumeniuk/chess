@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import App from '../App';
 
 const authState = vi.hoisted(() => ({
@@ -50,7 +50,21 @@ vi.mock('@react-oauth/google', () => ({
   ),
 }));
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('auth and bot regressions', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
@@ -126,5 +140,103 @@ describe('auth and bot regressions', () => {
     await waitFor(() => {
       expect(evalMocks.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 16, 20);
     }, { timeout: 2000 });
+  });
+
+  it('ignores a stale endgame bot reply after restarting the position', async () => {
+    const firstReply = createDeferred<string | null>();
+    const secondReply = createDeferred<string | null>();
+
+    evalMocks.getEndgamePosition.mockResolvedValueOnce({
+      id: 'end-stale',
+      level: 'beginner_class_d',
+      levelLabel: 'Beginners to Class D (<1400)',
+      chapter: 'The Staircase',
+      name: 'Restart Guard Endgame',
+      fen: '7k/8/8/8/8/8/R7/R5K1 w - - 0 1',
+      side: 'b',
+      description: 'The bot should move for White, but stale replies must be ignored.',
+    });
+    evalMocks.getStockfishBestMove
+      .mockImplementationOnce(() => firstReply.promise)
+      .mockImplementationOnce(() => secondReply.promise);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByText('Endgame'));
+    fireEvent.click(screen.getByText('Start Game'));
+
+    await waitFor(() => {
+      expect(evalMocks.getStockfishBestMove).toHaveBeenCalledTimes(1);
+    }, { timeout: 2000 });
+
+    fireEvent.click(screen.getByTestId('new-game-button'));
+
+    expect(within(screen.getByTestId('square-a2')).getByLabelText('w-r')).toBeInTheDocument();
+
+    await act(async () => {
+      firstReply.resolve('a2a8');
+      await Promise.resolve();
+    });
+
+    expect(evalMocks.getStockfishBestMove).toHaveBeenCalledTimes(1);
+    expect(within(screen.getByTestId('square-a2')).getByLabelText('w-r')).toBeInTheDocument();
+    expect(within(screen.getByTestId('square-a8')).queryByLabelText('w-r')).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(evalMocks.getStockfishBestMove).toHaveBeenCalledTimes(2);
+    }, { timeout: 2000 });
+
+    await act(async () => {
+      secondReply.resolve('a2a8');
+      await Promise.resolve();
+    });
+
+    expect(within(screen.getByTestId('square-a8')).getByLabelText('w-r')).toBeInTheDocument();
+  });
+
+  it('ignores a stale puzzle reply after restarting the puzzle', async () => {
+    const reply = createDeferred<string | null>();
+
+    evalMocks.getPolgarPuzzle.mockResolvedValueOnce({
+      id: 'polgar-stale',
+      fen: '3k4/8/8/8/8/8/1Q6/3K4 w - - 0 1',
+      moves: [],
+      solution: ['b2b5', 'b5b8'],
+      rating: 1000,
+      themes: ['Mate in Two', 'polgar'],
+      categoryRemaining: 2,
+      categoryTotal: 2,
+    });
+    evalMocks.getStockfishBestMove.mockImplementationOnce(() => reply.promise);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByText('Polgar'));
+    fireEvent.click(screen.getByText('Mate in 2'));
+    fireEvent.click(screen.getByText('Start Game'));
+
+    await waitFor(() => {
+      expect(evalMocks.getPolgarPuzzle).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByTestId('square-b2'));
+    fireEvent.click(screen.getByTestId('square-b5'));
+
+    await waitFor(() => {
+      expect(evalMocks.getStockfishBestMove).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByTestId('new-game-button'));
+
+    expect(within(screen.getByTestId('square-b2')).getByLabelText('w-q')).toBeInTheDocument();
+
+    await act(async () => {
+      reply.resolve('d8c8');
+      await Promise.resolve();
+    });
+
+    expect(within(screen.getByTestId('square-b2')).getByLabelText('w-q')).toBeInTheDocument();
+    expect(within(screen.getByTestId('square-d8')).getByLabelText('b-k')).toBeInTheDocument();
+    expect(within(screen.getByTestId('square-c8')).queryByLabelText('b-k')).not.toBeInTheDocument();
   });
 });
