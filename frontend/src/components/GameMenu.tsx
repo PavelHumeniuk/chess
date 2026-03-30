@@ -10,6 +10,7 @@ interface GameMenuProps {
 const MIN_BOT_ELO = 800;
 const MAX_BOT_ELO = 2800;
 const ENDGAME_LEVELS = [
+    { value: 'review_due', label: 'Review Due' },
     { value: 'beginner_class_d', label: 'Beginner-D' },
     { value: 'class_c', label: 'Class C' },
     { value: 'class_b', label: 'Class B' },

@@ -290,12 +290,16 @@ function App() {
     } else if (mode === 'endgame') {
       const endgameLevel = polgarType || selectedEndgameLevel;
       setSelectedEndgameLevel(endgameLevel);
-      const endgame = await getEndgamePosition(endgameLevel);
-      if (endgame) {
+      try {
+        const endgame = await getEndgamePosition(endgameLevel);
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
         setPlayerColor(endgame.side);
         setHintText(null);
+      } catch (err) {
+        setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching endgame'}`);
+        setIsSetup(true);
+        return;
       }
     } else {
       setHintText(null);
@@ -305,11 +309,14 @@ function App() {
 
   const handleNextPuzzle = async () => {
     if (gameMode === 'endgame') {
-      const endgame = await getEndgamePosition(selectedEndgameLevel);
-      if (endgame) {
+      try {
+        const endgame = await getEndgamePosition(selectedEndgameLevel);
         setEndgameInfo(endgame);
         loadGame(endgame.fen);
         setPlayerColor(endgame.side);
+      } catch (err) {
+        setPuzzleFeedback(`⚠️ ${err instanceof Error ? err.message : 'Error fetching endgame'}`);
+        setIsSetup(true);
       }
       return;
     }
@@ -399,6 +406,7 @@ function App() {
   const isTrainingLocked = (isMateLinePuzzle && (isPuzzleReplying || isPuzzleResolved || game.turn() !== playerColor))
     || ((gameMode === 'bot' || gameMode === 'endgame') && game.turn() !== playerColor);
   const endgameTheory = getEndgameTheory(endgameInfo);
+  const isReviewDueEndgame = gameMode === 'endgame' && selectedEndgameLevel === 'review_due';
 
   return (
     <div className="app">
@@ -550,14 +558,20 @@ function App() {
                     )}
                     {gameMode === 'endgame' && endgameInfo?.categoryTotal !== undefined && (
                       <div className="stat-item highlight">
-                        <span className="stat-label">🎯 Level Progress</span>
-                        <span className="stat-value">{endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)} / {endgameInfo.categoryTotal}</span>
-                        <div className="category-progress-bar">
-                          <div
-                            className="category-progress-fill"
-                            style={{ width: `${((endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)) / endgameInfo.categoryTotal) * 100}%` }}
-                          />
-                        </div>
+                        <span className="stat-label">{isReviewDueEndgame ? '🎯 Due Endgames' : '🎯 Level Progress'}</span>
+                        <span className="stat-value">
+                          {isReviewDueEndgame
+                            ? `${endgameInfo.categoryRemaining ?? endgameInfo.categoryTotal}`
+                            : `${endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)} / ${endgameInfo.categoryTotal}`}
+                        </span>
+                        {!isReviewDueEndgame && (
+                          <div className="category-progress-bar">
+                            <div
+                              className="category-progress-fill"
+                              style={{ width: `${((endgameInfo.categoryTotal - (endgameInfo.categoryRemaining || 0)) / endgameInfo.categoryTotal) * 100}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                     {gameMode === 'endgame' && endgameInfo && (

@@ -4,6 +4,9 @@ import type { GameMode } from '../components/GameMenu';
 import type { Square, PieceType } from '../engine/types';
 import type { ChessGame } from '../engine/ChessGame';
 
+const ENDGAME_BOT_DEPTH = 16;
+const ENDGAME_BOT_SKILL = 20;
+
 interface BotProps {
   game: ChessGame;
   isSetup: boolean;
@@ -26,7 +29,9 @@ export function useBot({ game, isSetup, gameMode, playerColor, skillLevel, posit
         // Wait a bit for "thinking" effect
         await new Promise(r => setTimeout(r, 400));
         
-        const bestMoveUCI = await getStockfishBestMove(game.fen(), 10, skillLevel);
+        const depth = gameMode === 'endgame' ? ENDGAME_BOT_DEPTH : 10;
+        const strength = gameMode === 'endgame' ? ENDGAME_BOT_SKILL : skillLevel;
+        const bestMoveUCI = await getStockfishBestMove(game.fen(), depth, strength);
         if (bestMoveUCI) {
           const from = bestMoveUCI.slice(0, 2) as Square;
           const to = bestMoveUCI.slice(2, 4) as Square;

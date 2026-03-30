@@ -99,8 +99,32 @@ describe('auth and bot regressions', () => {
       expect(evalMocks.getStockfishBestMove).toHaveBeenCalled();
     }, { timeout: 2000 });
 
+    expect(evalMocks.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 10, 10);
+
     await waitFor(() => {
       expect(screen.getByText('e5')).toBeInTheDocument();
+    }, { timeout: 2000 });
+  });
+
+  it('uses stronger Stockfish settings for endgame replies', async () => {
+    evalMocks.getEndgamePosition.mockResolvedValueOnce({
+      id: 'end-strong',
+      level: 'beginner_class_d',
+      levelLabel: 'Beginners to Class D (<1400)',
+      chapter: 'The Staircase',
+      name: 'Immediate Endgame Reply',
+      fen: '7k/8/8/8/8/8/R7/R5K1 w - - 0 1',
+      side: 'b',
+      description: 'Engine should move immediately in endgame mode.',
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByText('Endgame'));
+    fireEvent.click(screen.getByText('Start Game'));
+
+    await waitFor(() => {
+      expect(evalMocks.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 16, 20);
     }, { timeout: 2000 });
   });
 });

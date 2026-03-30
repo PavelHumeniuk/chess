@@ -195,36 +195,48 @@ const endgames = require('./data/endgames.json');
 api.get('/puzzle/endgame', requireAuth, (req, res) => {
   const level = typeof req.query.level === 'string' ? req.query.level : '';
   const userId = req.user.id;
-  const filtered = level ? endgames.filter(position => position.level === level) : endgames;
+  const progress = getAllProgress.all(userId).filter(p => p.puzzle_id.startsWith('endgame-'));
+  const seenIds = new Set(progress.map(p => p.puzzle_id));
+  const dueIds = new Set(getDueToday(userId).map(p => p.puzzle_id));
+  const isReviewDue = level === 'review_due';
+
+  let filtered = level && !isReviewDue ? endgames.filter(position => position.level === level) : endgames;
 
   if (filtered.length === 0) {
     return res.status(404).json({ error: 'No endgame positions found for that level.' });
   }
 
-  const progress = getAllProgress.all(userId).filter(p => p.puzzle_id.startsWith('endgame-'));
-  const seenIds = new Set(progress.map(p => p.puzzle_id));
-  const dueIds = new Set(getDueToday(userId).map(p => p.puzzle_id));
+  if (isReviewDue) {
+    filtered = filtered.filter(position => dueIds.has(position.id));
+    if (filtered.length === 0) {
+      return res.status(404).json({ error: 'No endgames due for review!' });
+    }
+  }
 
-  let pool = filtered.filter(position => dueIds.has(position.id));
-  if (pool.length === 0) {
+  let pool = isReviewDue ? filtered : filtered.filter(position => dueIds.has(position.id));
+  if (!isReviewDue && pool.length === 0) {
     pool = filtered.filter(position => !seenIds.has(position.id));
   }
-  if (pool.length === 0) {
+  if (!isReviewDue && pool.length === 0) {
     pool = filtered;
   }
 
   const choice = pool[Math.floor(Math.random() * pool.length)];
-  const levelTotal = endgames.filter(position => position.level === choice.level).length;
-  const levelSeen = new Set(
-    progress
-      .filter(p => endgames.some(position => position.id === p.puzzle_id && position.level === choice.level))
-      .map(p => p.puzzle_id)
-  );
+  const categoryTotal = isReviewDue
+    ? filtered.length
+    : endgames.filter(position => position.level === choice.level).length;
+  const categoryRemaining = isReviewDue
+    ? filtered.length
+    : Math.max(categoryTotal - new Set(
+      progress
+        .filter(p => endgames.some(position => position.id === p.puzzle_id && position.level === choice.level))
+        .map(p => p.puzzle_id)
+    ).size, 0);
 
   res.json({
     ...choice,
-    categoryRemaining: Math.max(levelTotal - levelSeen.size, 0),
-    categoryTotal: levelTotal,
+    categoryRemaining,
+    categoryTotal,
   });
 });
 

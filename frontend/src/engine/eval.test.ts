@@ -99,4 +99,40 @@ describe('eval', () => {
       expect.any(Object),
     );
   });
+
+  it('supports requesting due-review endgames', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'end-2',
+        level: 'class_c',
+        levelLabel: 'Class C (1400-1599)',
+        chapter: 'Opposition',
+        name: 'Review Endgame',
+        fen: '8/8/8/3k4/3PK3/8/8/8 w - - 0 1',
+        side: 'w',
+        description: 'desc',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getEndgamePosition('review_due');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/puzzle/endgame?level=review_due'),
+      expect.any(Object),
+    );
+  });
+
+  it('throws the backend message when fetching an endgame fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'No endgames due for review!' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getEndgamePosition('review_due')).rejects.toThrow('No endgames due for review!');
+  });
 });

@@ -4,6 +4,9 @@ import type { Puzzle, PuzzleStats } from '../engine/eval';
 import type { ChessGame } from '../engine/ChessGame';
 import type { Square, PieceType, MoveResult } from '../engine/types';
 
+const TRAINING_REPLY_DEPTH = 16;
+const TRAINING_REPLY_SKILL = 20;
+
 interface PuzzleProps {
   currentPuzzle: Puzzle | null;
   puzzleStep: number;
@@ -90,7 +93,7 @@ export function usePuzzles({
 
       setIsPuzzleReplying(true);
       setPuzzleFeedback('🤖 Stockfish is choosing Black\'s best defense...');
-      const bestMoveUci = await getStockfishBestMove(game.fen(), 12, 20);
+      const bestMoveUci = await getStockfishBestMove(game.fen(), TRAINING_REPLY_DEPTH, TRAINING_REPLY_SKILL);
       if (!bestMoveUci) {
         setIsPuzzleReplying(false);
         setPuzzleFeedback('❌ Could not evaluate Black reply. Please restart.');

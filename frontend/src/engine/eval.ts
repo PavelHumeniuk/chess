@@ -77,17 +77,10 @@ export interface PuzzleStats {
 }
 
 // ─── Puzzles ──────────────────────────────────────────────────────────────────
-
-
-export async function getEndgamePosition(level?: string): Promise<EndgamePosition | null> {
-  try {
-    const query = level ? `?level=${encodeURIComponent(level)}` : '';
-    const response = await fetch(apiUrl(`/puzzle/endgame${query}`), { headers: authHeaders(), credentials: 'include' });
-    return await parseJsonOrThrow(response) as EndgamePosition;
-  } catch (error) {
-    console.error('Error fetching endgame:', error);
-    return null;
-  }
+export async function getEndgamePosition(level?: string): Promise<EndgamePosition> {
+  const query = level ? `?level=${encodeURIComponent(level)}` : '';
+  const response = await fetch(apiUrl(`/puzzle/endgame${query}`), { headers: authHeaders(), credentials: 'include' });
+  return await parseJsonOrThrow(response) as EndgamePosition;
 }
 
 export async function getPolgarPuzzle(type?: string): Promise<Puzzle | null> {

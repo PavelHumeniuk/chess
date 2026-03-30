@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi, type Mock } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from '../App';
 import * as evalEngine from '../engine/eval';
 
@@ -129,6 +129,83 @@ describe('End-to-End Game Scenarios', () => {
         expect(screen.getAllByText('Beginners to Class D (<1400)')).toHaveLength(2);
         expect(screen.getByText('King and Queen vs King')).toBeInTheDocument();
         expect(screen.getByText('Checkmate with King and Queen')).toBeInTheDocument();
+    });
+
+    it('Game 7d: Endgame review due requests the review queue', async () => {
+        (evalEngine.getEndgamePosition as Mock).mockResolvedValueOnce({
+            id: 'end-review',
+            level: 'class_c',
+            levelLabel: 'Class C (1400-1599)',
+            chapter: 'Opposition',
+            name: 'Review Queue Endgame',
+            fen: '8/8/8/3k4/3PK3/8/8/8 w - - 0 1',
+            side: 'w',
+            description: 'A due endgame review.',
+            categoryRemaining: 3,
+            categoryTotal: 3,
+        });
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        fireEvent.click(screen.getByText('Review Due'));
+        startGame();
+
+        await waitFor(() => {
+            expect(evalEngine.getEndgamePosition).toHaveBeenCalledWith('review_due');
+        });
+
+        const dueStat = screen.getByText(/Due Endgames/i).closest('.stat-item');
+        expect(dueStat).not.toBeNull();
+        expect(within(dueStat as HTMLElement).getByText(/^3$/)).toBeInTheDocument();
+    });
+
+    it('Game 7e: Endgame review due with nothing queued keeps the user in the menu', async () => {
+        (evalEngine.getEndgamePosition as Mock).mockRejectedValueOnce(new Error('No endgames due for review!'));
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        fireEvent.click(screen.getByText('Review Due'));
+        startGame();
+
+        await waitFor(() => {
+            expect(screen.getByText(/No endgames due for review!/i)).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Select Game Mode')).toBeInTheDocument();
+    });
+
+    it('Game 7f: Next Endgame handles an empty review queue by returning to the menu', async () => {
+        (evalEngine.getEndgamePosition as Mock)
+            .mockResolvedValueOnce({
+                id: 'end-review-next',
+                level: 'class_b',
+                levelLabel: 'Class B (1600-1799)',
+                chapter: 'Opposition',
+                name: 'Last Due Endgame',
+                fen: '8/8/8/3k4/3PK3/8/8/8 w - - 0 1',
+                side: 'w',
+                description: 'The last due endgame.',
+                categoryRemaining: 1,
+                categoryTotal: 1,
+            })
+            .mockRejectedValueOnce(new Error('No endgames due for review!'));
+
+        render(<App />);
+        fireEvent.click(screen.getByText('Endgame'));
+        fireEvent.click(screen.getByText('Review Due'));
+        startGame();
+
+        await waitFor(() => {
+            expect(screen.getByText('Last Due Endgame')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('Next Endgame ➡️'));
+
+        await waitFor(() => {
+            expect(screen.getByText(/No endgames due for review!/i)).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Select Game Mode')).toBeInTheDocument();
     });
 
     it('Game 7a: Endgame theory button opens chapter guidance', async () => {
@@ -262,6 +339,8 @@ describe('End-to-End Game Scenarios', () => {
             expect(evalEngine.getStockfishBestMove).toHaveBeenCalled();
         });
 
+        expect(evalEngine.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 16, 20);
+
         await waitFor(() => {
             expect(screen.getByText(/Find mate in 1/i)).toBeInTheDocument();
         });
@@ -295,6 +374,8 @@ describe('End-to-End Game Scenarios', () => {
         await waitFor(() => {
             expect(evalEngine.getStockfishBestMove).toHaveBeenCalled();
         });
+
+        expect(evalEngine.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 16, 20);
 
         await waitFor(() => {
             expect(screen.getByText(/Find mate in 2/i)).toBeInTheDocument();
