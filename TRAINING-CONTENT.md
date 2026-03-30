@@ -23,7 +23,7 @@ The app has two content pipelines:
 
 Both systems share the same persistence layer:
 
-- Progress storage: `backend/db.js`
+- Progress storage: `backend/db.ts`
 - Save endpoint: `POST /api/progress/:puzzleId`
 - Stats endpoint: `GET /api/puzzle/stats`
 
@@ -39,7 +39,7 @@ Important fields:
 - `attempts`, `successes`: aggregate accuracy counters
 - `next_due`: next review date
 
-Scheduling logic lives in `backend/index.js` in `calcSRS()`:
+Scheduling logic lives in `backend/index.ts` in `calcSRS()`:
 
 - Success:
   interval grows by `ceil(interval * ease)`
@@ -48,7 +48,7 @@ Scheduling logic lives in `backend/index.js` in `calcSRS()`:
   interval resets to `1`
   ease decreases down to `1.3`
 
-Due items are computed in `backend/db.js` by parsing `next_due` as a real `Date`.
+Due items are computed in `backend/db.ts` by parsing `next_due` as a real `Date`.
 
 ## Polgar Puzzle Design
 
@@ -73,7 +73,7 @@ The app converts each puzzle to a stable runtime id:
 
 Backend route:
 
-- [backend/index.js](/Users/pavelhumeniuk/src/chess/backend/index.js)
+- [backend/index.ts](/Users/pavelhumeniuk/src/chess/backend/index.ts)
   `GET /api/puzzle/polgar`
 
 Request query:
@@ -146,7 +146,7 @@ Frontend save call:
 
 Backend save route:
 
-- [backend/index.js](/Users/pavelhumeniuk/src/chess/backend/index.js)
+- [backend/index.ts](/Users/pavelhumeniuk/src/chess/backend/index.ts)
   `POST /api/progress/:puzzleId`
 
 Rules:
@@ -165,7 +165,7 @@ To add new Polgar-style categories:
 4. If the new category needs custom logic, update:
    [frontend/src/hooks/usePuzzles.ts](/Users/pavelhumeniuk/src/chess/frontend/src/hooks/usePuzzles.ts)
 5. If selection rules differ, update:
-   [backend/index.js](/Users/pavelhumeniuk/src/chess/backend/index.js)
+   [backend/index.ts](/Users/pavelhumeniuk/src/chess/backend/index.ts)
 
 If you introduce a new family of ids, keep the `polgar-` prefix for Polgar items so stats filtering continues to work.
 
@@ -176,6 +176,8 @@ If you introduce a new family of ids, keep the `polgar-` prefix for Polgar items
 Endgames live in:
 
 - [backend/data/endgames.json](/Users/pavelhumeniuk/src/chess/backend/data/endgames.json)
+
+During deployment, this JSON is copied into the backend build output at `dist/data/endgames.json`. The persistent Docker volume should keep only `chess.db`, not training content.
 
 Each endgame record includes:
 
@@ -210,7 +212,7 @@ This keeps the app organized like a curriculum while avoiding copying book conte
 
 Backend route:
 
-- [backend/index.js](/Users/pavelhumeniuk/src/chess/backend/index.js)
+- [backend/index.ts](/Users/pavelhumeniuk/src/chess/backend/index.ts)
   `GET /api/puzzle/endgame?level=...`
 
 Frontend passes the selected level from:
@@ -319,10 +321,10 @@ To add more endgames:
 
 ## Backend Files To Know
 
-- [backend/index.js](/Users/pavelhumeniuk/src/chess/backend/index.js)
+- [backend/index.ts](/Users/pavelhumeniuk/src/chess/backend/index.ts)
   Selection rules, progress save endpoint, stats endpoint, Stockfish access
 
-- [backend/db.js](/Users/pavelhumeniuk/src/chess/backend/db.js)
+- [backend/db.ts](/Users/pavelhumeniuk/src/chess/backend/db.ts)
   SQLite schema, progress access helpers, due-date logic
 
 - [backend/data/polgar_puzzles.json](/Users/pavelhumeniuk/src/chess/backend/data/polgar_puzzles.json)
@@ -337,6 +339,6 @@ Useful regression tests:
 
 - [frontend/src/__tests__/e2e.test.tsx](/Users/pavelhumeniuk/src/chess/frontend/src/__tests__/e2e.test.tsx)
 - [frontend/src/engine/eval.test.ts](/Users/pavelhumeniuk/src/chess/frontend/src/engine/eval.test.ts)
-- [backend/test/api.test.mjs](/Users/pavelhumeniuk/src/chess/backend/test/api.test.mjs)
+- [backend/test/api.test.ts](/Users/pavelhumeniuk/src/chess/backend/test/api.test.ts)
 
 If you change selection rules, chunking, repetition logic, or stats filtering, add or update tests in those files.

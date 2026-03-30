@@ -7,6 +7,8 @@ This project is now structured as a monorepo with separate `frontend` and `backe
 - **Frontend**: React served by Nginx (Port 80 internally).
 - **Backend**: Node.js + Stockfish (Port 3001 internally).
 - **Reverse Proxy**: Traefik (Ports 80/443 externally).
+- **Persistent volume**: SQLite database only.
+- **Bundled content**: `polgar_puzzles.json` and `endgames.json` are copied into the backend image during build and loaded from `dist/data` at runtime.
 
 ---
 
@@ -72,6 +74,15 @@ Add the following Secrets to your GitHub Repository (**Settings > Secrets and va
    - SSH into your VPS and pull the latest images.
    - Run `docker compose up -d`.
    - Traefik will automatically provision an SSL certificate via Let's Encrypt.
+
+### Content Update Note
+
+When you change endgame or Polgar JSON content:
+
+- redeploy the backend image so the new bundled `dist/data/*.json` files are published
+- do not wipe the `chess_db` volume just to refresh training content
+
+The Docker volume mounted at `/app/data` is for `chess.db` persistence. Training content should come from the image, not from that mutable volume.
 
 ---
 

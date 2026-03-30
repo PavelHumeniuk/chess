@@ -2,13 +2,14 @@
   "name": "chess-backend",
   "version": "1.0.0",
   "description": "Stockfish backend for Chess App",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "lint": "node --check index.js && node --check auth.js && node --check db.js && node --check middleware/requireAuth.js",
+    "build": "if [ -x ./node_modules/.bin/tsc ]; then ./node_modules/.bin/tsc -p tsconfig.json; elif [ -x ../frontend/node_modules/.bin/tsc ]; then ../frontend/node_modules/.bin/tsc -p tsconfig.json; else echo 'TypeScript compiler not found' >&2; exit 1; fi && mkdir -p dist/data && cp data/*.json dist/data/",
+    "start": "npm run build && node dist/index.js",
+    "dev": "nodemon --watch . --ext ts,json --ignore dist --exec \"npm run start\"",
+    "lint": "if [ -x ./node_modules/.bin/tsc ]; then ./node_modules/.bin/tsc -p tsconfig.json --noEmit; elif [ -x ../frontend/node_modules/.bin/tsc ]; then ../frontend/node_modules/.bin/tsc -p tsconfig.json --noEmit; else echo 'TypeScript compiler not found' >&2; exit 1; fi",
     "test": "vitest run",
-    "smoke": "node -e \"require('./index'); console.log('backend smoke ok')\""
+    "smoke": "npm run build && node -e \"require('./dist/index.js'); console.log('backend smoke ok')\""
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -20,8 +21,10 @@
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
+    "@types/node": "^24.12.0",
     "nodemon": "^3.1.0",
     "supertest": "^7.1.4",
+    "typescript": "~5.9.3",
     "vitest": "^4.1.0"
   }
 }

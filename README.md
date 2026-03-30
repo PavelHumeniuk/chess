@@ -8,7 +8,7 @@ A full-stack chess training application featuring SRS-based (Spaced Repetition S
 
 This project is a monorepo consisting of:
 -   **`/frontend`**: React + Vite application with TypeScript and Tailwind (or CSS).
--   **`/backend`**: Node.js/Express server providing chess puzzles and Stockfish analysis.
+-   **`/backend`**: TypeScript Node.js/Express server providing chess puzzles and Stockfish analysis.
 
 ---
 
@@ -46,6 +46,10 @@ This project is configured for automated deployment to a VPS via GitHub Actions 
 ### Deployment Workflow:
 1.  **CI**: Every push to `main` triggers `.github/workflows/main.yml` to lint, test, and verify build for frontend and backend.
 2.  **CD**: In the same `.github/workflows/main.yml` pipeline, Docker images are built/pushed to GHCR and deployment runs via SSH.
+
+Important deployment detail:
+- The backend persists only the SQLite database in the Docker volume.
+- Training JSON content is bundled into the backend image at build time, so endgame and Polgar content updates require a backend redeploy but do not require wiping the VPS volume.
 
 ---
 
