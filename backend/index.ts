@@ -8,7 +8,10 @@ import { getMe, googleLogin, logout } from './auth';
 import {
   getAllProgress,
   getDueToday,
+  getGameById,
+  getGames,
   getPuzzleProgress,
+  insertGame,
   upsertPuzzleProgress,
 } from './db';
 import requireAuth from './middleware/requireAuth';
@@ -469,6 +472,58 @@ api.post('/puzzle/result', requireAuth, (req: RequestLike<{ id?: unknown; succes
 
   persistProgressResult(userId, puzzleId, success);
   return res.json({ ok: true });
+});
+
+// ─── Games API ────────────────────────────────────────────────────────────────
+
+// POST /games — save a finished bot game
+api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerColor?: unknown; result?: unknown; moves?: unknown }>, res: ResponseLike) => {
+  const userId = req.user!.id;
+  const botRating = parseIntegerInRange(req.body?.botRating, 800, 400, 3200);
+  const playerColor = readString(req.body?.playerColor);
+  const result = readString(req.body?.result);
+  const moves = req.body?.moves;
+
+  if (!['w', 'b'].includes(playerColor)) {
+    return res.status(400).json({ error: 'playerColor must be w or b' });
+  }
+  if (!['win', 'loss', 'draw'].includes(result)) {
+    return res.status(400).json({ error: 'result must be win, loss, or draw' });
+  }
+  if (!Array.isArray(moves)) {
+    return res.status(400).json({ error: 'moves must be an array' });
+  }
+
+  const info = insertGame.run({
+    userId,
+    botRating,
+    playerColor: playerColor as 'w' | 'b',
+    result: result as 'win' | 'loss' | 'draw',
+    movesJson: JSON.stringify(moves),
+    totalMoves: moves.length,
+  });
+
+  return res.status(201).json({ ok: true, id: Number(info.lastInsertRowid) });
+});
+
+// GET /games — list of games for the logged-in user (no move data)
+api.get('/games', requireAuth, (req: RequestLike, res: ResponseLike) => {
+  const rows = getGames.all(req.user!.id);
+  return res.json(rows);
+});
+
+// GET /games/:id — single game with full move list
+api.get('/games/:id', requireAuth, (req: RequestLike<unknown, Record<string, unknown>, { id: string }>, res: ResponseLike) => {
+  const id = parseIntegerInRange(req.params?.id, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (id === 0) return res.status(400).json({ error: 'Invalid game id' });
+
+  const row = getGameById.get(id, req.user!.id);
+  if (!row) return res.status(404).json({ error: 'Game not found' });
+
+  let moves: string[] = [];
+  try { moves = JSON.parse(row.moves_json) as string[]; } catch { /* leave empty */ }
+
+  return res.json({ ...row, moves, moves_json: undefined });
 });
 
 // Accept both `/api/*` and legacy unprefixed routes so auth keeps working

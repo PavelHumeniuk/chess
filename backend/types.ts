@@ -88,3 +88,23 @@ export interface EndgameRecord {
   side: 'w' | 'b';
   description: string;
 }
+
+export interface GameRow {
+  id: number;
+  user_id: number;
+  played_at: string;
+  bot_rating: number;
+  player_color: 'w' | 'b';
+  result: 'win' | 'loss' | 'draw';
+  moves_json: string;
+  total_moves: number;
+}
+
+export interface GameInsert {
+  userId: number;
+  botRating: number;
+  playerColor: 'w' | 'b';
+  result: 'win' | 'loss' | 'draw';
+  movesJson: string;
+  totalMoves: number;
+}

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import GameHistory from './pages/GameHistory';
 import Board from './components/Board';
 import GameStatus from './components/GameStatus';
 import MoveHistory from './components/MoveHistory';
@@ -15,6 +16,7 @@ import {
   getPolgarPuzzle, 
   getEndgamePosition,
   reportPuzzleResult,
+  saveGame,
 } from './engine/eval';
 import type { EndgamePosition } from './engine/eval';
 import type { Square, PieceType } from './engine/types';
@@ -57,9 +59,12 @@ function App() {
   } = useChessGame();
 
   const [isSetup, setIsSetup] = useState(!initialData);
+  const [appView, setAppView] = useState<'menu' | 'game' | 'history'>(!initialData ? 'menu' : 'game');
   const [gameMode, setGameMode] = useState<GameMode>(initialData?.mode || 'pvp');
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>(initialData?.playerColor || 'w');
   const [skillLevel, setSkillLevel] = useState(initialData?.skillLevel || 10);
+  const [botElo, setBotElo] = useState(1800);
+  const gameSavedRef = useRef(false);
   
   const [currentPuzzle, setCurrentPuzzle] = useState(initialData?.currentPuzzle || null);
   const [puzzleStep, setPuzzleStep] = useState(initialData?.puzzleStep || 0);
@@ -185,6 +190,22 @@ function App() {
     void reportPuzzleResult(endgameInfo.id, didWin).then(() => fetchPuzzleStats());
   }, [gameMode, endgameInfo, playerColor, status, user, setPuzzleFeedback, fetchPuzzleStats]);
 
+  // Auto-save completed bot games
+  useEffect(() => {
+    if (gameMode !== 'bot' || isSetup || !user) return;
+    const isOver = status.state === 'checkmate' || status.state === 'stalemate' || status.state === 'draw';
+    if (!isOver || gameSavedRef.current) return;
+    gameSavedRef.current = true;
+
+    let result: 'win' | 'loss' | 'draw';
+    if (status.state === 'checkmate') {
+      result = status.winner === playerColor ? 'win' : 'loss';
+    } else {
+      result = 'draw';
+    }
+    void saveGame({ botRating: botElo, playerColor, result, moves: game.history() });
+  }, [status, gameMode, isSetup, user, playerColor, botElo, game]);
+
   const handleSquareClick = useCallback(
     async (square: Square) => {
       if (game.isGameOver()) return;
@@ -273,12 +294,15 @@ function App() {
     [pendingPromotion, makeMove]
   );
 
-  const handleStartGame = async (mode: GameMode, color: 'w' | 'b', level: number, polgarType?: string) => {
+  const handleStartGame = async (mode: GameMode, color: 'w' | 'b', level: number, elo: number, polgarType?: string) => {
     const session = beginSession();
     setGameMode(mode);
     setPlayerColor(color);
     setSkillLevel(level);
+    setBotElo(elo);
+    gameSavedRef.current = false;
     setIsSetup(false);
+    setAppView('game');
     setPuzzleFeedback(null);
     setHintText(null);
     setPuzzleStep(0);
@@ -366,6 +390,8 @@ function App() {
     beginSession();
     resetPuzzleState();
     setIsSetup(true);
+    setAppView('menu');
+    gameSavedRef.current = false;
     setHintText(null);
     clearState();
     resetGame();
@@ -430,6 +456,7 @@ function App() {
     resetPuzzleState();
     setHintText(null);
     setIsSetup(true);
+    setAppView('menu');
   }, [beginSession, resetPuzzleState]);
 
   if (loading) {
@@ -451,9 +478,17 @@ function App() {
       <header className="app__header">
         <h1 className="app__title">♔ Chess</h1>
         <div className="app__header-right">
-          {!isSetup && (
+          {appView === 'game' && (
             <button className="back-to-menu-btn" onClick={handleBackToMenu}>
               ⬅️ Menu
+            </button>
+          )}
+          {(appView === 'menu' || appView === 'history') && (
+            <button
+              className={`back-to-menu-btn${appView === 'history' ? ' active' : ''}`}
+              onClick={() => setAppView(appView === 'history' ? 'menu' : 'history')}
+            >
+              {appView === 'history' ? '⬅️ Menu' : '📋 History'}
             </button>
           )}
           <div className="user-pill">
@@ -472,7 +507,9 @@ function App() {
             {puzzleFeedback}
           </div>
         )}
-        {isSetup ? (
+        {appView === 'history' ? (
+          <GameHistory />
+        ) : isSetup ? (
           <GameMenu onStartGame={handleStartGame} />
         ) : (
           <div className="app__game-area">

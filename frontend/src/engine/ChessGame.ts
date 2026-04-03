@@ -118,4 +118,13 @@ export class ChessGame {
         }
         return null;
     }
+
+    /** Apply a SAN move (e.g. 'e4', 'Nf3', 'O-O'). Returns from/to if successful, null otherwise. */
+    makeSanMove(san: string): { from: Square; to: Square } | null {
+        const legalMoves = this.chess.moves({ verbose: true });
+        const match = legalMoves.find((m) => m.san === san);
+        if (!match) return null;
+        const result = this.makeMove(match.from as Square, match.to as Square, match.promotion as PieceType | undefined);
+        return result.success ? { from: match.from as Square, to: match.to as Square } : null;
+    }
 }

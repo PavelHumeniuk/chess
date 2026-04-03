@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { PuzzleProgressRow, PuzzleProgressUpsert, UserRow } from './types';
+import type { GameInsert, GameRow, PuzzleProgressRow, PuzzleProgressUpsert, UserRow } from './types';
 
 interface DatabaseLike {
   pragma(statement: string): void;
@@ -45,6 +45,17 @@ db.exec(`
     next_due    DATETIME NOT NULL,
     last_seen   DATETIME,
     UNIQUE(user_id, puzzle_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS games (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id),
+    played_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    bot_rating   INTEGER NOT NULL,
+    player_color TEXT NOT NULL CHECK(player_color IN ('w', 'b')),
+    result       TEXT NOT NULL CHECK(result IN ('win', 'loss', 'draw')),
+    moves_json   TEXT NOT NULL,
+    total_moves  INTEGER NOT NULL
   );
 `);
 
@@ -133,5 +144,49 @@ export function isDueDate(nextDue: string, now = new Date()): boolean {
 export function getDueToday(userId: number, now = new Date()): PuzzleProgressRow[] {
   return getAllProgress.all(userId).filter((progress) => isDueDate(progress.next_due, now));
 }
+
+// --- Games ---
+
+const insertGameStatement = db.prepare(`
+  INSERT INTO games (user_id, bot_rating, player_color, result, moves_json, total_moves)
+  VALUES (@userId, @botRating, @playerColor, @result, @movesJson, @totalMoves)
+`) as {
+  run(params: GameInsert): RunResult;
+};
+
+const getGamesStatement = db.prepare(`
+  SELECT id, played_at, bot_rating, player_color, result, total_moves
+  FROM games
+  WHERE user_id = ?
+  ORDER BY played_at DESC
+`) as {
+  all(userId: number): Omit<GameRow, 'moves_json'>[];
+};
+
+const getGameByIdStatement = db.prepare(`
+  SELECT id, played_at, bot_rating, player_color, result, moves_json, total_moves
+  FROM games
+  WHERE id = ? AND user_id = ?
+`) as {
+  get(id: number, userId: number): GameRow | undefined;
+};
+
+export const insertGame = {
+  run(params: GameInsert): RunResult {
+    return insertGameStatement.run(params);
+  },
+};
+
+export const getGames = {
+  all(userId: number): Omit<GameRow, 'moves_json'>[] {
+    return getGamesStatement.all(userId);
+  },
+};
+
+export const getGameById = {
+  get(id: number, userId: number): GameRow | undefined {
+    return getGameByIdStatement.get(id, userId);
+  },
+};
 
 export { db };

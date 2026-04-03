@@ -4,7 +4,7 @@ import './GameMenu.css';
 export type GameMode = 'pvp' | 'bot' | 'polgar' | 'endgame';
 
 interface GameMenuProps {
-    onStartGame: (mode: GameMode, playerColor: 'w' | 'b', skillLevel: number, polgarType?: string) => void;
+    onStartGame: (mode: GameMode, playerColor: 'w' | 'b', skillLevel: number, botElo: number, polgarType?: string) => void;
 }
 
 const MIN_BOT_ELO = 800;
@@ -178,6 +178,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onStartGame }) => {
                     mode,
                     playerColor,
                     eloToSkill(botElo),
+                    botElo,
                     mode === 'polgar' ? polgarType : mode === 'endgame' ? endgameLevel : undefined,
                 )}
             >

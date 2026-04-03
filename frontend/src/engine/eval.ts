@@ -137,3 +137,54 @@ export async function getPuzzleStats(kind?: 'polgar' | 'endgame'): Promise<Puzzl
     return null;
   }
 }
+
+// ─── Game History ─────────────────────────────────────────────────────────────
+
+export interface GameRecord {
+  id: number;
+  played_at: string;
+  bot_rating: number;
+  player_color: 'w' | 'b';
+  result: 'win' | 'loss' | 'draw';
+  total_moves: number;
+  moves?: string[];
+}
+
+export async function saveGame(payload: {
+  botRating: number;
+  playerColor: 'w' | 'b';
+  result: 'win' | 'loss' | 'draw';
+  moves: string[];
+}): Promise<void> {
+  try {
+    const response = await fetch(apiUrl('/games'), {
+      method: 'POST',
+      headers: authHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    await parseJsonOrThrow(response);
+  } catch (error) {
+    console.error('Error saving game:', error);
+  }
+}
+
+export async function getGames(): Promise<GameRecord[]> {
+  try {
+    const response = await fetch(apiUrl('/games'), { headers: authHeaders(), credentials: 'include' });
+    return await parseJsonOrThrow(response) as GameRecord[];
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    return [];
+  }
+}
+
+export async function getGame(id: number): Promise<GameRecord | null> {
+  try {
+    const response = await fetch(apiUrl(`/games/${id}`), { headers: authHeaders(), credentials: 'include' });
+    return await parseJsonOrThrow(response) as GameRecord;
+  } catch (error) {
+    console.error('Error fetching game:', error);
+    return null;
+  }
+}
