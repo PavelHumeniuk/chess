@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 
 import { getMe, googleLogin, logout } from './auth';
 import {
+  deleteGameById,
   getAllProgress,
   getDueToday,
   getGameById,
@@ -225,6 +226,39 @@ function parseBestMove(output: string): string | null {
   return match ? match[1] : null;
 }
 
+function parseAnalyze(output: string, targetDepth: number, maxLines: number) {
+  const lines = output.split('\n');
+  const results = new Map<number, { score: number; mate: number | null; pv: string[] }>();
+  
+  for (const line of lines) {
+    // Only capture outputs matching our target depth (or best reached)
+    const depthMatch = line.match(/info depth (\d+)/);
+    if (!depthMatch || Number.parseInt(depthMatch[1], 10) < targetDepth) continue;
+
+    const pvMatch = line.match(/multipv (\d+).*(score cp (-?\d+)|score mate (-?\d+)).* pv (.*)/);
+    if (pvMatch) {
+      const pvIdx = Number.parseInt(pvMatch[1], 10);
+      if (pvIdx > maxLines) continue;
+
+      let score = 0;
+      let mate: number | null = null;
+      if (pvMatch[3]) {
+        score = Number.parseInt(pvMatch[3], 10);
+      } else if (pvMatch[4]) {
+        mate = Number.parseInt(pvMatch[4], 10);
+        score = mate > 0 ? 10000 : -10000;
+      }
+      
+      const pv = pvMatch[5] ? pvMatch[5].trim().split(' ') : [];
+      results.set(pvIdx, { score, mate, pv });
+    }
+  }
+
+  return Array.from(results.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(entry => entry[1]);
+}
+
 // ─── Stockfish API ────────────────────────────────────────────────────────────
 const computeRateLimiter = createComputeRateLimiter();
 
@@ -254,6 +288,31 @@ api.post('/bestmove', computeRateLimiter, async (req: RequestLike<{ fen?: string
       `go depth ${depth}`,
     ]);
     return res.json({ bestmove: parseBestMove(output) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Stockfish error' });
+  }
+});
+
+api.post('/analyze', computeRateLimiter, async (req: RequestLike<{ fen?: string; depth?: unknown; multiPv?: unknown }>, res: ResponseLike) => {
+  const fen = readString(req.body?.fen);
+  const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
+  const multiPv = parseIntegerInRange(req.body?.multiPv, 3, 1, 5);
+  if (!fen) return res.status(400).json({ error: 'FEN is required' });
+  try {
+    const output = await askStockfish([
+      'uci',
+      `setoption name MultiPV value ${multiPv}`,
+      `position fen ${fen}`,
+      `go depth ${depth}`,
+    ]);
+    const lines = parseAnalyze(output, depth, multiPv);
+    const top = lines[0];
+    return res.json({ 
+      score: top?.score ?? 0, 
+      mate: top?.mate ?? null, 
+      lines 
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Stockfish error' });
@@ -524,6 +583,17 @@ api.get('/games/:id', requireAuth, (req: RequestLike<unknown, Record<string, unk
   try { moves = JSON.parse(row.moves_json) as string[]; } catch { /* leave empty */ }
 
   return res.json({ ...row, moves, moves_json: undefined });
+});
+
+// DELETE /games/:id — remove a saved game for the logged-in user
+api.delete('/games/:id', requireAuth, (req: RequestLike<unknown, Record<string, unknown>, { id: string }>, res: ResponseLike) => {
+  const id = parseIntegerInRange(req.params?.id, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (id === 0) return res.status(400).json({ error: 'Invalid game id' });
+
+  const deleted = deleteGameById.run(id, req.user!.id);
+  if (deleted.changes === 0) return res.status(404).json({ error: 'Game not found' });
+
+  return res.json({ ok: true });
 });
 
 // Accept both `/api/*` and legacy unprefixed routes so auth keeps working

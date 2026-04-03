@@ -111,6 +111,32 @@ export async function getStockfishBestMove(
   }
 }
 
+export interface EngineAnalysis {
+  score: number;
+  mate: number | null;
+  lines: { score: number; mate: number | null; pv: string[] }[];
+}
+
+export async function getAnalysis(
+  fen: string,
+  depth: number = 12,
+  multiPv: number = 3,
+): Promise<EngineAnalysis | null> {
+  try {
+    const response = await fetch(apiUrl('/analyze'), {
+      method: 'POST',
+      headers: authHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ fen, depth, multiPv }),
+    });
+    return await parseJsonOrThrow(response) as EngineAnalysis;
+  } catch (error) {
+    console.error('Error fetching engine analysis:', error);
+    return null;
+  }
+}
+
+
 // ─── Progress / Stats ─────────────────────────────────────────────────────────
 
 export async function reportPuzzleResult(id: string, success: boolean): Promise<void> {
@@ -187,4 +213,13 @@ export async function getGame(id: number): Promise<GameRecord | null> {
     console.error('Error fetching game:', error);
     return null;
   }
+}
+
+export async function deleteGame(id: number): Promise<void> {
+  const response = await fetch(apiUrl(`/games/${id}`), {
+    method: 'DELETE',
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  await parseJsonOrThrow(response);
 }

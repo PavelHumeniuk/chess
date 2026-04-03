@@ -35,6 +35,14 @@ interface PendingPromotion {
   to: Square;
 }
 
+function normalizeEvalForWhite(fen: string, score: number, mate: number | null) {
+  const multiplier = fen.split(' ')[1] === 'b' ? -1 : 1;
+  return {
+    score: score * multiplier,
+    mate: mate !== null ? mate * multiplier : null,
+  };
+}
+
 function App() {
   const { loadState, saveState, clearState } = usePersistence();
   const { user, loading, logout } = useAuth();
@@ -154,8 +162,9 @@ function App() {
   useEffect(() => {
     if (showEval) {
       const fetchEval = async () => {
-        const result = await getStockfishEvaluation(game.fen());
-        setStockfishEval(result);
+        const fen = game.fen();
+        const result = await getStockfishEvaluation(fen);
+        setStockfishEval(normalizeEvalForWhite(fen, result.score, result.mate));
       };
       fetchEval();
     }

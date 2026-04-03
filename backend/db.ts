@@ -13,6 +13,10 @@ interface RunResult {
   lastInsertRowid: number | bigint;
 }
 
+interface ChangeResult {
+  changes: number;
+}
+
 const Database = require('better-sqlite3') as new (filename: string) => DatabaseLike;
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -171,6 +175,13 @@ const getGameByIdStatement = db.prepare(`
   get(id: number, userId: number): GameRow | undefined;
 };
 
+const deleteGameByIdStatement = db.prepare(`
+  DELETE FROM games
+  WHERE id = ? AND user_id = ?
+`) as {
+  run(id: number, userId: number): ChangeResult;
+};
+
 export const insertGame = {
   run(params: GameInsert): RunResult {
     return insertGameStatement.run(params);
@@ -186,6 +197,12 @@ export const getGames = {
 export const getGameById = {
   get(id: number, userId: number): GameRow | undefined {
     return getGameByIdStatement.get(id, userId);
+  },
+};
+
+export const deleteGameById = {
+  run(id: number, userId: number): ChangeResult {
+    return deleteGameByIdStatement.run(id, userId);
   },
 };
 

@@ -1,12 +1,41 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Board from '../components/Board';
-import { getGames, getGame } from '../engine/eval';
-import type { GameRecord } from '../engine/eval';
+import { getGames, getGame, getAnalysis, deleteGame } from '../engine/eval';
+import type { GameRecord, EngineAnalysis } from '../engine/eval';
 import { ChessGame } from '../engine/ChessGame';
 import type { Board as BoardData, Square } from '../engine/types';
 import './GameHistory.css';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+type TurnColor = 'w' | 'b';
+
+interface ReviewLine {
+  score: number;
+  mate: number | null;
+  sanLine: string[];
+}
+
+interface PositionAnalysis {
+  score: number;
+  mate: number | null;
+  lines: ReviewLine[];
+  bestMoveSan: string | null;
+}
+
+interface MoveReview {
+  label: 'Best' | 'Missed opportunity' | 'Mistake' | 'Blunder';
+  tone: 'best' | 'missed' | 'mistake' | 'blunder';
+  loss: number;
+  bestMoveSan: string | null;
+}
+
+interface ReplayPosition {
+  board: BoardData;
+  lastMove: { from: Square; to: Square } | null;
+  kingInCheck: Square | null;
+  fen: string;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -28,10 +57,130 @@ function colorLabel(color: 'w' | 'b'): string {
   return color === 'w' ? '♔ White' : '♚ Black';
 }
 
+function formatScore(score: number, mate: number | null): string {
+  if (mate !== null) {
+    return mate > 0 ? `+M${mate}` : `-M${Math.abs(mate)}`;
+  }
+  const cp = score / 100;
+  return cp > 0 ? `+${cp.toFixed(1)}` : cp.toFixed(1);
+}
+
 function daysAgo(days: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d;
+}
+
+function normalizeSan(san: string | null | undefined): string {
+  return (san ?? '').replace(/[+#?!]+/g, '');
+}
+
+function scoreForMover(score: number, mover: TurnColor): number {
+  return mover === 'w' ? score : -score;
+}
+
+function formatPawnLoss(loss: number): string {
+  return `${(Math.abs(loss) / 100).toFixed(1)} pawns`;
+}
+
+function toSanLine(fen: string, pv: string[], maxMoves = 4): string[] {
+  const game = new ChessGame(fen);
+  const sanLine: string[] = [];
+
+  for (const uciMove of pv.slice(0, maxMoves)) {
+    const san = game.getSanForUci(uciMove);
+    if (!san) break;
+    sanLine.push(san);
+    game.makeSanMove(san);
+  }
+
+  return sanLine;
+}
+
+function toWhitePerspective(fen: string, score: number, mate: number | null) {
+  const activeColor = fen.split(' ')[1] === 'b' ? -1 : 1;
+  return {
+    score: score * activeColor,
+    mate: mate !== null ? mate * activeColor : null,
+  };
+}
+
+function buildPositionAnalysis(fen: string, analysis: EngineAnalysis): PositionAnalysis {
+  const lines = analysis.lines.map((line) => ({
+    ...toWhitePerspective(fen, line.score, line.mate),
+    sanLine: toSanLine(fen, line.pv),
+  }));
+
+  const top = toWhitePerspective(fen, analysis.score, analysis.mate);
+
+  return {
+    score: top.score,
+    mate: top.mate,
+    lines,
+    bestMoveSan: lines[0]?.sanLine[0] ?? null,
+  };
+}
+
+function classifyMoveReview(
+  moveIndex: number,
+  playedSan: string,
+  before: PositionAnalysis,
+  after: PositionAnalysis,
+): MoveReview | null {
+  const mover: TurnColor = moveIndex % 2 === 0 ? 'w' : 'b';
+  const bestMoveSan = before.bestMoveSan;
+  const beforeScore = scoreForMover(before.score, mover);
+  const afterScore = scoreForMover(after.score, mover);
+  const loss = beforeScore - afterScore;
+
+  if (bestMoveSan && normalizeSan(bestMoveSan) === normalizeSan(playedSan)) {
+    return { label: 'Best', tone: 'best', loss, bestMoveSan };
+  }
+
+  if (loss >= 250) {
+    return { label: 'Blunder', tone: 'blunder', loss, bestMoveSan };
+  }
+
+  if (loss >= 120) {
+    return { label: 'Mistake', tone: 'mistake', loss, bestMoveSan };
+  }
+
+  if (loss >= 70 && beforeScore >= 125) {
+    return { label: 'Missed opportunity', tone: 'missed', loss, bestMoveSan };
+  }
+
+  return null;
+}
+
+function captureReplayPosition(game: ChessGame, lastMove: { from: Square; to: Square } | null): ReplayPosition {
+  const status = game.getStatus();
+  let kingInCheck: Square | null = null;
+
+  if (status.state === 'check') {
+    kingInCheck = game.getKingSquare(status.turn);
+  } else if (status.state === 'checkmate') {
+    const loser = status.winner === 'w' ? 'b' : 'w';
+    kingInCheck = game.getKingSquare(loser);
+  }
+
+  return {
+    board: game.getBoard(),
+    lastMove,
+    kingInCheck,
+    fen: game.fen(),
+  };
+}
+
+function buildReplayPositions(moves: string[]): ReplayPosition[] {
+  const game = new ChessGame();
+  const positions: ReplayPosition[] = [captureReplayPosition(game, null)];
+
+  for (const san of moves) {
+    const lastMove = game.makeSanMove(san);
+    positions.push(captureReplayPosition(game, lastMove));
+  }
+
+  return positions;
 }
 
 // ─── Stats computation ────────────────────────────────────────────────────────
@@ -258,9 +407,11 @@ interface GameListProps {
   games: GameRecord[];
   loading: boolean;
   onSelect: (id: number) => void;
+  onDelete: (game: GameRecord) => void;
+  deletingGameId: number | null;
 }
 
-function GameList({ games, loading, onSelect }: GameListProps) {
+function GameList({ games, loading, onSelect, onDelete, deletingGameId }: GameListProps) {
   if (loading) {
     return <div className="gh-loading">Loading history…</div>;
   }
@@ -276,17 +427,27 @@ function GameList({ games, loading, onSelect }: GameListProps) {
   return (
     <div className="gh-list">
       {games.map((g) => (
-        <button key={g.id} className={`gh-card gh-card--${g.result}`} onClick={() => onSelect(g.id)}>
-          <div className="gh-card__top">
-            <span className={`gh-badge gh-badge--${g.result}`}>{resultLabel(g.result)}</span>
-            <span className="gh-card__date">{formatDate(g.played_at)} <span className="gh-card__time">{formatTime(g.played_at)}</span></span>
-          </div>
-          <div className="gh-card__bottom">
-            <span className="gh-card__meta">🤖 Bot {g.bot_rating} ELO</span>
-            <span className="gh-card__meta">{colorLabel(g.player_color)}</span>
-            <span className="gh-card__meta">🔢 {g.total_moves} moves</span>
-          </div>
-        </button>
+        <div key={g.id} className={`gh-card gh-card--${g.result}`}>
+          <button type="button" className="gh-card__main" onClick={() => onSelect(g.id)}>
+            <div className="gh-card__top">
+              <span className={`gh-badge gh-badge--${g.result}`}>{resultLabel(g.result)}</span>
+              <span className="gh-card__date">{formatDate(g.played_at)} <span className="gh-card__time">{formatTime(g.played_at)}</span></span>
+            </div>
+            <div className="gh-card__bottom">
+              <span className="gh-card__meta">🤖 Bot {g.bot_rating} ELO</span>
+              <span className="gh-card__meta">{colorLabel(g.player_color)}</span>
+              <span className="gh-card__meta">🔢 {g.total_moves} moves</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="gh-delete-btn gh-delete-btn--inline"
+            disabled={deletingGameId === g.id}
+            onClick={() => onDelete(g)}
+          >
+            {deletingGameId === g.id ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -294,50 +455,152 @@ function GameList({ games, loading, onSelect }: GameListProps) {
 
 // ─── Replay view ──────────────────────────────────────────────────────────────
 
-// Build board state by replaying moves up to a given step
-function buildBoardAtStep(moves: string[], step: number): {
-  board: BoardData;
-  lastMove: { from: Square; to: Square } | null;
-  kingInCheck: Square | null;
-} {
-  const g = new ChessGame();
-  let lastMove: { from: Square; to: Square } | null = null;
+// Small Helper to convert SVG path
+function createEvalPath(scores: (number | null)[], width: number, height: number, filledOptions: { type: 'white' | 'black' | 'line' }) {
+  if (scores.length <= 1) return '';
+  const stepX = width / (scores.length - 1);
+  const midY = height / 2;
+  
+  let path = `M0,${midY}`;
+  scores.forEach((s, i) => {
+    let y = midY;
+    if (s !== null) {
+      // clamp score between -1000 and 1000 cp
+      const clamped = Math.max(-1000, Math.min(1000, s));
+      // map -1000..1000 to height..0 (higher score is White advantage, closer to 0)
+      y = midY - (clamped / 1000) * midY;
+    }
+    path += ` L${i * stepX},${y}`;
+  });
 
-  for (let i = 0; i < step; i++) {
-    const san = moves[i];
-    if (!san) break;
-    const result = g.makeSanMove(san);
-    if (result) lastMove = result;
+  if (filledOptions.type === 'white') {
+    return `${path} L${width},${midY} L0,${midY} Z`;
+  } else if (filledOptions.type === 'black') {
+    return `${path} L${width},${midY} L0,${midY} Z`;
   }
+  return path;
+}
 
-  const status = g.getStatus();
-  let kingInCheck: Square | null = null;
-  if (status.state === 'check') {
-    kingInCheck = g.getKingSquare(status.turn);
-  } else if (status.state === 'checkmate') {
-    const loser = status.winner === 'w' ? 'b' : 'w';
-    kingInCheck = g.getKingSquare(loser);
-  }
+function EvalGraph({ scores, currentStep, onSelect }: { scores: (number | null)[], currentStep: number, onSelect: (step: number) => void }) {
+  const width = 100;
+  const height = 40;
+  const midY = height / 2;
+  const linePath = useMemo(() => createEvalPath(scores, width, height, { type: 'line' }), [scores]);
+  const fillPath = useMemo(() => createEvalPath(scores, width, height, { type: 'white' }), [scores]);
+  
+  const stepX = scores.length > 1 ? width / (scores.length - 1) : 0;
+  const cursorX = currentStep * stepX;
 
-  return { board: g.getBoard(), lastMove, kingInCheck };
+  return (
+    <div className="gh-eval-graph-container" onClick={(e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = clickX / rect.width;
+      const step = Math.round(pct * (scores.length - 1));
+      onSelect(Math.max(0, Math.min(scores.length - 1, step)));
+    }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="gh-eval-svg">
+        <rect x="0" y="0" width={width} height={midY} fill="rgba(255,255,255,0.05)" />
+        <rect x="0" y={midY} width={width} height={midY} fill="rgba(0,0,0,0.15)" />
+        
+        {/* fill path covering advantages */}
+        {fillPath && (
+          <clipPath id="adv-clip">
+            <path d={fillPath} />
+          </clipPath>
+        )}
+        
+        {fillPath && (
+          <g clipPath="url(#adv-clip)">
+            {/* White advantage fill */}
+            <rect x="0" y="0" width={width} height={midY} fill="rgba(255,255,255,0.8)" />
+            {/* Black advantage fill */}
+            <rect x="0" y={midY} width={width} height={midY} fill="rgba(0,0,0,0.8)" />
+          </g>
+        )}
+        
+        {/* stroke path */}
+        {linePath && (
+          <path d={linePath} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" strokeLinejoin="round" />
+        )}
+        
+        {/* zero line */}
+        <line x1="0" y1={midY} x2={width} y2={midY} stroke="rgba(150,150,150,0.2)" strokeWidth="0.5" />
+        
+        {/* current step cursor */}
+        <line x1={cursorX} y1="0" x2={cursorX} y2={height} stroke="#ff5555" strokeWidth="0.8" />
+      </svg>
+    </div>
+  );
 }
 
 interface GameReplayProps {
   game: GameRecord;
   onBack: () => void;
+  onDelete: (game: GameRecord) => void;
+  deletingGameId: number | null;
 }
 
-function GameReplay({ game, onBack }: GameReplayProps) {
-  const moves = game.moves ?? [];
+function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps) {
+  const moves = useMemo(() => game.moves ?? [], [game.moves]);
+  const positions = useMemo(() => buildReplayPositions(moves), [moves]);
   const [step, setStep] = useState(moves.length);
+  const [evals, setEvals] = useState<(number | null)[]>(new Array(moves.length + 1).fill(null));
+  const [isAnalyzingGame, setIsAnalyzingGame] = useState(false);
+  const [analyzedCount, setAnalyzedCount] = useState(0);
+
+  const [isAnalyzingMove, setIsAnalyzingMove] = useState(false);
+  const [analysisEntries, setAnalysisEntries] = useState<Record<number, PositionAnalysis>>({});
+  const analysisCache = useRef<Map<number, PositionAnalysis>>(new Map());
+  const pendingAnalysis = useRef<Map<number, Promise<PositionAnalysis | null>>>(new Map());
   const moveListRef = useRef<HTMLDivElement>(null);
 
   const goTo = useCallback((target: number) => {
     setStep(Math.max(0, Math.min(moves.length, target)));
   }, [moves.length]);
 
+
+
+  const storeAnalysis = useCallback((targetStep: number, analysis: PositionAnalysis) => {
+    analysisCache.current.set(targetStep, analysis);
+    setAnalysisEntries((prev) => ({ ...prev, [targetStep]: analysis }));
+    setEvals((prev) => {
+      if (prev[targetStep] === analysis.score) return prev;
+      const next = [...prev];
+      next[targetStep] = analysis.score;
+      return next;
+    });
+  }, []);
+
+  const ensureAnalysis = useCallback(async (targetStep: number, depth = 10, multiPv = 3): Promise<PositionAnalysis | null> => {
+    const cached = analysisCache.current.get(targetStep);
+    if (cached) return cached;
+
+    const existingRequest = pendingAnalysis.current.get(targetStep);
+    if (existingRequest) return existingRequest;
+
+    const position = positions[targetStep];
+    if (!position) return null;
+
+    const request = getAnalysis(position.fen, depth, multiPv)
+      .then((result) => {
+        if (!result) return null;
+        const next = buildPositionAnalysis(position.fen, result);
+        storeAnalysis(targetStep, next);
+        return next;
+      })
+      .finally(() => {
+        pendingAnalysis.current.delete(targetStep);
+      });
+
+    pendingAnalysis.current.set(targetStep, request);
+    return request;
+  }, [positions, storeAnalysis]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't intercept if focus is in an input
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(step - 1); }
       if (e.key === 'ArrowRight') { e.preventDefault(); goTo(step + 1); }
     };
@@ -351,13 +614,66 @@ function GameReplay({ game, onBack }: GameReplayProps) {
     active?.scrollIntoView({ block: 'nearest' });
   }, [step]);
 
-  const { board, lastMove, kingInCheck } = buildBoardAtStep(moves, step);
+  const currentPosition = positions[step] ?? positions[0]!;
+  const { board, lastMove, kingInCheck } = currentPosition;
   const isFlipped = game.player_color === 'b';
+  const currentAnalysis = analysisEntries[step] ?? null;
+
+  useEffect(() => {
+    let active = true;
+    const needsCurrent = !analysisCache.current.has(step);
+    setIsAnalyzingMove(needsCurrent);
+
+    void Promise.all([
+      ensureAnalysis(step, 12, 3),
+      step > 0 ? ensureAnalysis(step - 1, 10, 3) : Promise.resolve(null),
+    ]).finally(() => {
+      if (active) setIsAnalyzingMove(false);
+    });
+
+    return () => { active = false; };
+  }, [ensureAnalysis, step]);
+
+  const runFullAnalysis = async () => {
+    if (isAnalyzingGame) return;
+    setIsAnalyzingGame(true);
+    setAnalyzedCount(0);
+
+    for (let i = 0; i <= moves.length; i++) {
+      if (analysisCache.current.has(i)) {
+        setAnalyzedCount(c => c + 1);
+        continue;
+      }
+      await ensureAnalysis(i, 10, 3);
+      setAnalyzedCount(c => c + 1);
+    }
+    setIsAnalyzingGame(false);
+  };
 
   const movePairs: { number: number; white: string; black?: string }[] = [];
   for (let i = 0; i < moves.length; i += 2) {
     movePairs.push({ number: i / 2 + 1, white: moves[i]!, black: moves[i + 1] });
   }
+
+  const moveReviews = useMemo(() => {
+    const reviews: Record<number, MoveReview> = {};
+
+    for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
+      const before = analysisEntries[moveIndex];
+      const after = analysisEntries[moveIndex + 1];
+      if (!before || !after) continue;
+
+      const review = classifyMoveReview(moveIndex, moves[moveIndex]!, before, after);
+      if (review) {
+        reviews[moveIndex + 1] = review;
+      }
+    }
+
+    return reviews;
+  }, [analysisEntries, moves]);
+
+  const selectedMoveReview = step > 0 ? moveReviews[step] ?? null : null;
+  const selectedMoveSan = step > 0 ? moves[step - 1] ?? null : null;
 
   return (
     <div className="gh-replay">
@@ -368,7 +684,31 @@ function GameReplay({ game, onBack }: GameReplayProps) {
           <span>🤖 {game.bot_rating} ELO</span>
           <span>{colorLabel(game.player_color)}</span>
           <span className="gh-card__date">{formatDate(game.played_at)}</span>
+          <button
+            type="button"
+            className="gh-delete-btn"
+            disabled={deletingGameId === game.id}
+            onClick={() => onDelete(game)}
+          >
+            {deletingGameId === game.id ? 'Deleting…' : 'Delete Game'}
+          </button>
         </div>
+      </div>
+
+      <div className="gh-replay__graph-area">
+        <EvalGraph scores={evals} currentStep={step} onSelect={goTo} />
+        
+        {!isAnalyzingGame && evals.includes(null) && (
+          <button className="gh-analyze-btn" onClick={runFullAnalysis}>
+            🧠 Analyze Full Game
+          </button>
+        )}
+        {isAnalyzingGame && (
+            <div className="gh-analyze-progress">
+              <div className="gh-analyze-progress-bar" style={{ width: `${(analyzedCount / (moves.length + 1)) * 100}%` }} />
+              <span>Analyzing... {analyzedCount}/{moves.length + 1}</span>
+            </div>
+        )}
       </div>
 
       <div className="gh-replay__body">
@@ -392,10 +732,11 @@ function GameReplay({ game, onBack }: GameReplayProps) {
           <p className="gh-controls__hint">← → to navigate</p>
         </div>
 
-        <div className="gh-replay__moves" ref={moveListRef}>
-          <div className="gh-move-row gh-move-row--header">
-            <span>#</span><span>White</span><span>Black</span>
-          </div>
+        <div className="gh-replay__sidebar">
+          <div className="gh-replay__moves" ref={moveListRef}>
+            <div className="gh-move-row gh-move-row--header">
+              <span>#</span><span>White</span><span>Black</span>
+            </div>
           {movePairs.map((pair) => {
             const whiteIdx = (pair.number - 1) * 2 + 1;
             const blackIdx = whiteIdx + 1;
@@ -406,21 +747,74 @@ function GameReplay({ game, onBack }: GameReplayProps) {
                   className={`gh-move ${step === whiteIdx ? 'gh-move--active' : ''}`}
                   onClick={() => goTo(whiteIdx)}
                 >
-                  {pair.white}
+                  <span className="gh-move__main">{pair.white}</span>
+                  {moveReviews[whiteIdx] && (
+                    <span className={`gh-move-tag gh-move-tag--${moveReviews[whiteIdx]!.tone}`}>
+                      {moveReviews[whiteIdx]!.label}
+                    </span>
+                  )}
                 </button>
                 {pair.black && (
                   <button
                     className={`gh-move ${step === blackIdx ? 'gh-move--active' : ''}`}
                     onClick={() => goTo(blackIdx)}
                   >
-                    {pair.black}
+                    <span className="gh-move__main">{pair.black}</span>
+                    {moveReviews[blackIdx] && (
+                      <span className={`gh-move-tag gh-move-tag--${moveReviews[blackIdx]!.tone}`}>
+                        {moveReviews[blackIdx]!.label}
+                      </span>
+                    )}
                   </button>
                 )}
               </div>
             );
           })}
           {moves.length === 0 && <p className="gh-empty-moves">No moves recorded.</p>}
+          </div>
         </div>
+      </div>
+
+      <div className="gh-analysis-panel">
+        <h4 className="gh-analysis-panel__title">Engine Analysis</h4>
+        {isAnalyzingMove ? (
+          <div className="gh-analysis-loading">...</div>
+        ) : currentAnalysis ? (
+          <div className="gh-analysis-content">
+            {selectedMoveReview && selectedMoveSan && (
+              <div className="gh-review-summary">
+                <span className={`gh-review-pill gh-review-pill--${selectedMoveReview.tone}`}>
+                  {selectedMoveReview.label}
+                </span>
+                <p className="gh-review-summary__text">
+                  {selectedMoveReview.tone === 'best'
+                    ? `${selectedMoveSan} matches the engine's top choice.`
+                    : `${selectedMoveSan} costs about ${formatPawnLoss(selectedMoveReview.loss)}.${selectedMoveReview.bestMoveSan ? ` Best was ${selectedMoveReview.bestMoveSan}.` : ''}`}
+                </p>
+              </div>
+            )}
+            <div className="gh-analysis-eval">
+              {formatScore(currentAnalysis.score, currentAnalysis.mate)}
+            </div>
+            <div className="gh-analysis-lines">
+              {currentAnalysis.lines.map((line, idx) => {
+                const firstMove = line.sanLine[0] ?? '...';
+                return (
+                  <div key={idx} className="gh-analysis-line">
+                    <span className="gh-al-score">{formatScore(line.score, line.mate)}</span>
+                    <span className="gh-al-move">
+                      <strong>{firstMove}</strong>
+                      <span className="gh-al-rest">
+                        {line.sanLine.slice(1).join(' ')}
+                        {line.sanLine.length >= 4 ? '...' : ''}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -434,6 +828,7 @@ export default function GameHistory() {
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
   const [showStats, setShowStats] = useState(true);
+  const [deletingGameId, setDeletingGameId] = useState<number | null>(null);
 
   useEffect(() => {
     getGames()
@@ -448,12 +843,36 @@ export default function GameHistory() {
     if (g) setSelectedGame(g);
   }, []);
 
+  const handleDelete = useCallback(async (game: GameRecord) => {
+    const confirmed = window.confirm(`Delete the game from ${formatDate(game.played_at)} at ${formatTime(game.played_at)}?`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingGameId(game.id);
+      await deleteGame(game.id);
+      setGames((prev) => prev.filter((item) => item.id !== game.id));
+      setSelectedGame((prev) => (prev?.id === game.id ? null : prev));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Failed to delete game');
+    } finally {
+      setDeletingGameId(null);
+    }
+  }, []);
+
   const stats = useMemo(() => (games.length > 0 ? computeStats(games) : null), [games]);
 
   if (loadingGame) return <div className="gh-loading">Loading game…</div>;
 
   if (selectedGame) {
-    return <GameReplay game={selectedGame} onBack={() => setSelectedGame(null)} />;
+    return (
+      <GameReplay
+        key={selectedGame.id}
+        game={selectedGame}
+        onBack={() => setSelectedGame(null)}
+        onDelete={handleDelete}
+        deletingGameId={deletingGameId}
+      />
+    );
   }
 
   return (
@@ -470,7 +889,13 @@ export default function GameHistory() {
       {stats && showStats && <StatsPanel stats={stats} />}
 
       <h3 className="gh-section-title">Recent Games</h3>
-      <GameList games={games} loading={loading} onSelect={handleSelect} />
+      <GameList
+        games={games}
+        loading={loading}
+        onSelect={handleSelect}
+        onDelete={handleDelete}
+        deletingGameId={deletingGameId}
+      />
     </div>
   );
 }
