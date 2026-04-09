@@ -36,6 +36,7 @@ interface PendingPromotion {
 }
 
 const MIN_SAVED_GAME_MOVES = 5;
+const MOVE_TIMER_TICK_MS = 200;
 
 function normalizeEvalForWhite(fen: string, score: number, mate: number | null) {
   const multiplier = fen.split(' ')[1] === 'b' ? -1 : 1;
@@ -43,6 +44,16 @@ function normalizeEvalForWhite(fen: string, score: number, mate: number | null) 
     score: score * multiplier,
     mate: mate !== null ? mate * multiplier : null,
   };
+}
+
+function formatMoveTime(ms: number): string {
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 function App() {
@@ -88,9 +99,12 @@ function App() {
   const [hintText, setHintText] = useState<string | null>(null);
   const [isHintLoading, setIsHintLoading] = useState(false);
   const [showEndgameTheory, setShowEndgameTheory] = useState(false);
+  const [moveTimes, setMoveTimes] = useState<number[]>([]);
+  const [currentMoveElapsedMs, setCurrentMoveElapsedMs] = useState(0);
   const reportedEndgameResult = useRef<string | null>(null);
   const activeSessionRef = useRef(0);
   const [sessionKey, setSessionKey] = useState(0);
+  const moveStartedAtRef = useRef<number | null>(null);
 
   const sideToMoveFromFen = useCallback((fen: string): 'w' | 'b' => (
     fen.split(' ')[1] === 'b' ? 'b' : 'w'
@@ -104,6 +118,28 @@ function App() {
   }, []);
 
   const isSessionCurrent = useCallback((key: number) => activeSessionRef.current === key, []);
+
+  const resetBotMoveTracking = useCallback(() => {
+    moveStartedAtRef.current = null;
+    setCurrentMoveElapsedMs(0);
+    setMoveTimes([]);
+  }, []);
+
+  const captureMoveElapsedMs = useCallback(() => {
+    if (moveStartedAtRef.current === null) {
+      return 0;
+    }
+    return Math.max(0, Math.round(Date.now() - moveStartedAtRef.current));
+  }, []);
+
+  const commitMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
+    const elapsedMs = gameMode === 'bot' ? captureMoveElapsedMs() : null;
+    const result = makeMove(from, to, promotion);
+    if (result.success && gameMode === 'bot') {
+      setMoveTimes((prev) => [...prev, elapsedMs ?? 0]);
+    }
+    return result;
+  }, [captureMoveElapsedMs, gameMode, makeMove]);
 
   // Initial load
   useEffect(() => {
@@ -125,11 +161,11 @@ function App() {
   });
 
   const onBotMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
-    const result = makeMove(from, to, promotion);
+    const result = commitMove(from, to, promotion);
     if (result.success) {
       setLastMove({ from, to });
     }
-  }, [makeMove, setLastMove]);
+  }, [commitMove, setLastMove]);
 
   const { isBotThinking } = useBot({
     game,
@@ -174,6 +210,24 @@ function App() {
       fetchEval();
     }
   }, [history, showEval, game]);
+
+  useEffect(() => {
+    if (gameMode !== 'bot' || isSetup || game.isGameOver()) {
+      moveStartedAtRef.current = null;
+      setCurrentMoveElapsedMs(0);
+      return;
+    }
+
+    moveStartedAtRef.current = Date.now();
+    setCurrentMoveElapsedMs(0);
+
+    const timer = window.setInterval(() => {
+      if (moveStartedAtRef.current === null) return;
+      setCurrentMoveElapsedMs(Date.now() - moveStartedAtRef.current);
+    }, MOVE_TIMER_TICK_MS);
+
+    return () => window.clearInterval(timer);
+  }, [gameMode, history.length, isSetup, status.state, game]);
 
   // Auto-hide feedback after 5 seconds
   useEffect(() => {
@@ -222,8 +276,8 @@ function App() {
     } else {
       result = 'draw';
     }
-    void saveGame({ botRating: botElo, playerColor, result, moves });
-  }, [status, gameMode, isSetup, user, playerColor, botElo, game]);
+    void saveGame({ botRating: botElo, playerColor, result, moves, moveTimes });
+  }, [status, gameMode, isSetup, user, playerColor, botElo, game, moveTimes]);
 
   const handleSquareClick = useCallback(
     async (square: Square) => {
@@ -259,7 +313,7 @@ function App() {
             return;
           }
 
-          makeMove(selectedSquare, square);
+          commitMove(selectedSquare, square);
           return;
         }
 
@@ -274,7 +328,7 @@ function App() {
         setLegalMoves(moves);
       }
     },
-    [selectedSquare, legalMoves, currentPuzzle, gameMode, game, handlePuzzleMove, makeMove, setLegalMoves, setSelectedSquare]
+    [selectedSquare, legalMoves, currentPuzzle, gameMode, game, handlePuzzleMove, commitMove, setLegalMoves, setSelectedSquare]
   );
 
   const handleDrop = useCallback(
@@ -298,19 +352,19 @@ function App() {
           return;
         }
 
-        makeMove(source, target);
+        commitMove(source, target);
       }
     },
-    [gameMode, playerColor, game, makeMove, setLegalMoves, setSelectedSquare]
+    [gameMode, playerColor, game, commitMove, setLegalMoves, setSelectedSquare]
   );
 
   const handlePromotion = useCallback(
     (pieceType: PieceType) => {
       if (!pendingPromotion) return;
-      makeMove(pendingPromotion.from, pendingPromotion.to, pieceType);
+      commitMove(pendingPromotion.from, pendingPromotion.to, pieceType);
       setPendingPromotion(null);
     },
-    [pendingPromotion, makeMove]
+    [pendingPromotion, commitMove]
   );
 
   const handleStartGame = async (mode: GameMode, color: 'w' | 'b', level: number, elo: number, polgarType?: string) => {
@@ -320,6 +374,7 @@ function App() {
     setSkillLevel(level);
     setBotElo(elo);
     gameSavedRef.current = false;
+    resetBotMoveTracking();
     setIsSetup(false);
     setAppView('game');
     setPuzzleFeedback(null);
@@ -411,16 +466,18 @@ function App() {
     setIsSetup(true);
     setAppView('menu');
     gameSavedRef.current = false;
+    resetBotMoveTracking();
     setHintText(null);
     clearState();
     resetGame();
-  }, [beginSession, clearState, resetGame, resetPuzzleState]);
+  }, [beginSession, clearState, resetBotMoveTracking, resetGame, resetPuzzleState]);
 
   const handleRestartTrainingPosition = useCallback(() => {
     beginSession();
     setHintText(null);
     setPuzzleStep(0);
     resetPuzzleState();
+    resetBotMoveTracking();
 
     if (gameMode === 'polgar' && currentPuzzle) {
       loadGame(currentPuzzle.fen);
@@ -435,7 +492,7 @@ function App() {
     }
 
     resetGame();
-  }, [beginSession, gameMode, currentPuzzle, endgameInfo, loadGame, resetGame, resetPuzzleState, sideToMoveFromFen]);
+  }, [beginSession, gameMode, currentPuzzle, endgameInfo, loadGame, resetBotMoveTracking, resetGame, resetPuzzleState, sideToMoveFromFen]);
 
   const handleHint = useCallback(async () => {
     if (gameMode !== 'polgar' || !currentPuzzle) return;
@@ -467,16 +524,23 @@ function App() {
     beginSession();
     resetPuzzleState();
     clearState();
+    resetBotMoveTracking();
     logout();
-  }, [beginSession, clearState, logout, resetPuzzleState]);
+  }, [beginSession, clearState, logout, resetBotMoveTracking, resetPuzzleState]);
 
   const handleBackToMenu = useCallback(() => {
     beginSession();
     resetPuzzleState();
+    resetBotMoveTracking();
     setHintText(null);
     setIsSetup(true);
     setAppView('menu');
-  }, [beginSession, resetPuzzleState]);
+  }, [beginSession, resetBotMoveTracking, resetPuzzleState]);
+
+  const liveMoveTimerLabel = gameMode === 'bot' && !isSetup && !game.isGameOver()
+    ? (game.turn() === playerColor ? 'Your move time' : 'Bot move time')
+    : null;
+  const liveMoveTimerValue = liveMoveTimerLabel ? formatMoveTime(currentMoveElapsedMs) : null;
 
   if (loading) {
     return <div className="app-loading">Loading…</div>;
@@ -534,7 +598,7 @@ function App() {
           <div className="app__game-area">
             <div className="app__board-section">
               <div style={{ position: 'relative' }}>
-                <GameStatus status={status} />
+                <GameStatus status={status} timerLabel={liveMoveTimerLabel} timerValue={liveMoveTimerValue} />
                 {isBotThinking && <div className="bot-thinking">🤖 Stockfish is thinking...</div>}
                 {isPuzzleReplying && <div className="bot-thinking">🤖 Stockfish is choosing Black&apos;s defense...</div>}
               </div>

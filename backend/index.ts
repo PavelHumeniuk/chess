@@ -261,6 +261,7 @@ function parseAnalyze(output: string, targetDepth: number, maxLines: number) {
 
 // ─── Stockfish API ────────────────────────────────────────────────────────────
 const computeRateLimiter = createComputeRateLimiter();
+const analysisRateLimiter = createComputeRateLimiter(180, 60_000);
 
 api.post('/eval', computeRateLimiter, async (req: RequestLike<{ fen?: string; depth?: unknown }>, res: ResponseLike) => {
   const fen = readString(req.body?.fen);
@@ -294,7 +295,7 @@ api.post('/bestmove', computeRateLimiter, async (req: RequestLike<{ fen?: string
   }
 });
 
-api.post('/analyze', computeRateLimiter, async (req: RequestLike<{ fen?: string; depth?: unknown; multiPv?: unknown }>, res: ResponseLike) => {
+api.post('/analyze', analysisRateLimiter, async (req: RequestLike<{ fen?: string; depth?: unknown; multiPv?: unknown }>, res: ResponseLike) => {
   const fen = readString(req.body?.fen);
   const depth = parseIntegerInRange(req.body?.depth, 12, 1, 18);
   const multiPv = parseIntegerInRange(req.body?.multiPv, 3, 1, 5);
@@ -537,12 +538,13 @@ api.post('/puzzle/result', requireAuth, (req: RequestLike<{ id?: unknown; succes
 const MIN_SAVED_GAME_MOVES = 5;
 
 // POST /games — save a finished bot game
-api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerColor?: unknown; result?: unknown; moves?: unknown }>, res: ResponseLike) => {
+api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerColor?: unknown; result?: unknown; moves?: unknown; moveTimes?: unknown }>, res: ResponseLike) => {
   const userId = req.user!.id;
   const botRating = parseIntegerInRange(req.body?.botRating, 800, 400, 3200);
   const playerColor = readString(req.body?.playerColor);
   const result = readString(req.body?.result);
   const moves = req.body?.moves;
+  const moveTimes = req.body?.moveTimes;
 
   if (!['w', 'b'].includes(playerColor)) {
     return res.status(400).json({ error: 'playerColor must be w or b' });
@@ -552,6 +554,9 @@ api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerC
   }
   if (!Array.isArray(moves)) {
     return res.status(400).json({ error: 'moves must be an array' });
+  }
+  if (moveTimes !== undefined && (!Array.isArray(moveTimes) || moveTimes.length !== moves.length || moveTimes.some((value) => !Number.isFinite(value) || Number(value) < 0))) {
+    return res.status(400).json({ error: 'moveTimes must be a non-negative number array matching moves length' });
   }
   if (moves.length < MIN_SAVED_GAME_MOVES) {
     return res.status(400).json({ error: `games must include at least ${MIN_SAVED_GAME_MOVES} moves` });
@@ -563,6 +568,7 @@ api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerC
     playerColor: playerColor as 'w' | 'b',
     result: result as 'win' | 'loss' | 'draw',
     movesJson: JSON.stringify(moves),
+    moveTimesJson: JSON.stringify(Array.isArray(moveTimes) ? moveTimes : []),
     totalMoves: moves.length,
   });
 
@@ -584,9 +590,11 @@ api.get('/games/:id', requireAuth, (req: RequestLike<unknown, Record<string, unk
   if (!row) return res.status(404).json({ error: 'Game not found' });
 
   let moves: string[] = [];
+  let moveTimes: number[] = [];
   try { moves = JSON.parse(row.moves_json) as string[]; } catch { /* leave empty */ }
+  try { moveTimes = row.move_times_json ? JSON.parse(row.move_times_json) as number[] : []; } catch { /* leave empty */ }
 
-  return res.json({ ...row, moves, moves_json: undefined });
+  return res.json({ ...row, moves, move_times: moveTimes, moves_json: undefined, move_times_json: undefined });
 });
 
 // DELETE /games/:id — remove a saved game for the logged-in user

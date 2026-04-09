@@ -4,11 +4,13 @@ import './GameStatus.css';
 
 interface GameStatusProps {
     status: GameStatusType;
+    timerLabel?: string | null;
+    timerValue?: string | null;
 }
 
 const colorName = (c: 'w' | 'b') => (c === 'w' ? 'White' : 'Black');
 
-const GameStatus: React.FC<GameStatusProps> = ({ status }) => {
+const GameStatus: React.FC<GameStatusProps> = ({ status, timerLabel, timerValue }) => {
     let message: string;
     let statusClass = 'game-status';
 
@@ -41,7 +43,14 @@ const GameStatus: React.FC<GameStatusProps> = ({ status }) => {
                     <div className={`game-status__turn-dot game-status__turn-dot--${status.turn}`} />
                 )}
             </div>
-            <span className="game-status__text">{message}</span>
+            <div className="game-status__body">
+                <span className="game-status__text">{message}</span>
+                {timerLabel && timerValue && (
+                    <span className="game-status__timer" data-testid="game-status-timer">
+                        {timerLabel}: {timerValue}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };

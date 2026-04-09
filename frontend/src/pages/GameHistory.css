@@ -671,6 +671,12 @@
   color: var(--color-text-muted, #818181);
 }
 
+.gh-analysis-summary__time {
+  margin: 0.18rem 0 0;
+  font-size: 0.76rem;
+  color: #b7d3ff;
+}
+
 .gh-analysis-summary__accuracy {
   flex-shrink: 0;
   font-size: 1.7rem;
@@ -869,6 +875,26 @@
 .gh-move__main {
   display: block;
   line-height: 1.2;
+}
+
+.gh-move__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.gh-move-time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-text-muted, #b7b7b7);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .gh-move-tag {
@@ -1173,6 +1199,10 @@
 
   .gh-move-tag {
     font-size: 0.66rem;
+  }
+
+  .gh-move-time {
+    font-size: 0.7rem;
   }
 
   .gh-analysis-summary__grid {

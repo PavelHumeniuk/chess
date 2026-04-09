@@ -61,6 +61,7 @@ describe('GameHistory replay', () => {
     const fullGame: GameRecord = {
       ...gameSummary,
       moves: ['e4', 'e5', 'Qh5'],
+      move_times: [3200, 4500, 7100],
     };
     const [fen0, fen1, fen2, fen3] = buildFenSequence(fullGame.moves ?? []);
 
@@ -95,9 +96,12 @@ describe('GameHistory replay', () => {
       expect(within(screen.getByTestId('gh-summary-b')).getByText('Mistake')).toBeInTheDocument();
     });
 
-    expect(evalMocks.getAnalysis).toHaveBeenCalledWith(fen0, 10, 3);
-    expect(evalMocks.getAnalysis).toHaveBeenCalledWith(fen1, 10, 3);
-    expect(evalMocks.getAnalysis).toHaveBeenCalledWith(fen2, 10, 3);
+    const analysisCalls = evalMocks.getAnalysis.mock.calls.map(([fen, depth, multiPv]) => ({ fen, depth, multiPv }));
+    expect(analysisCalls).toEqual(expect.arrayContaining([
+      { fen: fen0, depth: 8, multiPv: 2 },
+      { fen: fen1, depth: 8, multiPv: 2 },
+      { fen: fen2, depth: 8, multiPv: 2 },
+    ]));
     expect(evalMocks.getAnalysis).toHaveBeenCalledWith(fen3, 12, 3);
     expect(screen.getByRole('button', { name: /previous move/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /next move/i })).toBeInTheDocument();
@@ -108,13 +112,17 @@ describe('GameHistory replay', () => {
     expect(within(whiteSummary).getByText('White Accuracy')).toBeInTheDocument();
     expect(within(whiteSummary).getByText('100.0%')).toBeInTheDocument();
     expect(within(whiteSummary).getByText('2 analyzed moves')).toBeInTheDocument();
+    expect(within(whiteSummary).getByText('Avg move time 5.2s')).toBeInTheDocument();
     expect(within(whiteSummary).getByText('Best')).toBeInTheDocument();
     expect(within(whiteSummary).getByText('Good')).toBeInTheDocument();
     expect(within(whiteSummary).getAllByText(/^1$/)).toHaveLength(2);
 
     expect(within(blackSummary).getByText('Black Accuracy')).toBeInTheDocument();
     expect(within(blackSummary).getByText('1 analyzed move')).toBeInTheDocument();
+    expect(within(blackSummary).getByText('Avg move time 4.5s')).toBeInTheDocument();
     expect(within(blackSummary).getByText('Mistake')).toBeInTheDocument();
     expect(within(blackSummary).getByText('55.0%')).toBeInTheDocument();
+    expect(screen.getByText('3.2s')).toBeInTheDocument();
+    expect(screen.getByText('4.5s')).toBeInTheDocument();
   });
 });

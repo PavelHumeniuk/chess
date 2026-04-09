@@ -175,6 +175,7 @@ export interface GameRecord {
   result: 'win' | 'loss' | 'draw';
   total_moves: number;
   moves?: string[];
+  move_times?: number[];
 }
 
 export async function saveGame(payload: {
@@ -182,6 +183,7 @@ export async function saveGame(payload: {
   playerColor: 'w' | 'b';
   result: 'win' | 'loss' | 'draw';
   moves: string[];
+  moveTimes: number[];
 }): Promise<void> {
   if (payload.moves.length < MIN_SAVED_GAME_MOVES) {
     return;

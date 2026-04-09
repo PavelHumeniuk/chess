@@ -97,6 +97,7 @@ export interface GameRow {
   player_color: 'w' | 'b';
   result: 'win' | 'loss' | 'draw';
   moves_json: string;
+  move_times_json: string | null;
   total_moves: number;
 }
 
@@ -106,5 +107,6 @@ export interface GameInsert {
   playerColor: 'w' | 'b';
   result: 'win' | 'loss' | 'draw';
   movesJson: string;
+  moveTimesJson: string;
   totalMoves: number;
 }

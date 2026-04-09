@@ -40,6 +40,7 @@ interface PlayerAnalysisSummary {
   accuracy: number | null;
   moves: number;
   categories: Record<MoveCategory, number>;
+  averageMoveTimeMs: number | null;
 }
 
 interface ReplayPosition {
@@ -93,6 +94,16 @@ function scoreForMover(score: number, mover: TurnColor): number {
 
 function formatPawnLoss(loss: number): string {
   return `${(Math.abs(loss) / 100).toFixed(1)} pawns`;
+}
+
+function formatMoveDuration(ms: number): string {
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 function toSanLine(fen: string, pv: string[], maxMoves = 4): string[] {
@@ -172,7 +183,7 @@ function classifyMoveReview(
   return { category: 'good', label: 'Good', tone: 'good', loss, bestMoveSan, accuracy };
 }
 
-function summarizePlayers(moves: string[], analysisEntries: Record<number, PositionAnalysis>): PlayerAnalysisSummary[] | null {
+function summarizePlayers(moves: string[], moveTimes: number[], analysisEntries: Record<number, PositionAnalysis>): PlayerAnalysisSummary[] | null {
   const seed = (): Record<MoveCategory, number> => ({
     best: 0,
     good: 0,
@@ -181,9 +192,9 @@ function summarizePlayers(moves: string[], analysisEntries: Record<number, Posit
     blunder: 0,
   });
 
-  const summaries: Record<TurnColor, PlayerAnalysisSummary & { accuracyTotal: number }> = {
-    w: { color: 'w', label: 'White', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0 },
-    b: { color: 'b', label: 'Black', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0 },
+  const summaries: Record<TurnColor, PlayerAnalysisSummary & { accuracyTotal: number; moveTimeTotalMs: number }> = {
+    w: { color: 'w', label: 'White', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0, moveTimeTotalMs: 0, averageMoveTimeMs: null },
+    b: { color: 'b', label: 'Black', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0, moveTimeTotalMs: 0, averageMoveTimeMs: null },
   };
 
   for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
@@ -197,6 +208,7 @@ function summarizePlayers(moves: string[], analysisEntries: Record<number, Posit
     summary.moves += 1;
     summary.categories[review.category] += 1;
     summary.accuracyTotal += review.accuracy;
+    summary.moveTimeTotalMs += moveTimes[moveIndex] ?? 0;
   }
 
   return (['w', 'b'] as const).map((color) => {
@@ -207,6 +219,7 @@ function summarizePlayers(moves: string[], analysisEntries: Record<number, Posit
       moves: summary.moves,
       categories: summary.categories,
       accuracy: summary.moves > 0 ? Math.round((summary.accuracyTotal / summary.moves) * 10) / 10 : null,
+      averageMoveTimeMs: summary.moves > 0 ? Math.round(summary.moveTimeTotalMs / summary.moves) : null,
     };
   });
 }
@@ -610,6 +623,7 @@ function toAnalysisRecord(cache: Map<number, PositionAnalysis>): Record<number, 
 
 function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps) {
   const moves = useMemo(() => game.moves ?? [], [game.moves]);
+  const moveTimes = useMemo(() => game.move_times ?? [], [game.move_times]);
   const positions = useMemo(() => buildReplayPositions(moves), [moves]);
   const [step, setStep] = useState(moves.length);
   const [evals, setEvals] = useState<(number | null)[]>(new Array(moves.length + 1).fill(null));
@@ -682,9 +696,21 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
 
   useEffect(() => {
     if (!moveListRef.current) return;
-    const active = moveListRef.current.querySelector('.gh-move--active');
-    if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
-      active.scrollIntoView({ block: 'nearest' });
+    const container = moveListRef.current;
+    const active = container.querySelector('.gh-move--active');
+    if (!(active instanceof HTMLElement)) {
+      return;
+    }
+
+    const top = active.offsetTop;
+    const bottom = top + active.offsetHeight;
+    const visibleTop = container.scrollTop;
+    const visibleBottom = visibleTop + container.clientHeight;
+
+    if (top < visibleTop) {
+      container.scrollTop = Math.max(0, top - 12);
+    } else if (bottom > visibleBottom) {
+      container.scrollTop = bottom - container.clientHeight + 12;
     }
   }, [step]);
 
@@ -700,7 +726,7 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
 
     void Promise.all([
       ensureAnalysis(step, 12, 3),
-      step > 0 ? ensureAnalysis(step - 1, 10, 3) : Promise.resolve(null),
+      step > 0 ? ensureAnalysis(step - 1, 8, 2) : Promise.resolve(null),
     ]).finally(() => {
       if (active) setIsAnalyzingMove(false);
     });
@@ -726,7 +752,7 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
       );
 
       const results = await Promise.all(batch.map(async (targetStep) => {
-        const analysis = collected.get(targetStep) ?? await ensureAnalysis(targetStep, 10, 3);
+        const analysis = collected.get(targetStep) ?? await ensureAnalysis(targetStep, 8, 2);
         return { targetStep, analysis };
       }));
 
@@ -774,7 +800,7 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     return reviews;
   }, [analysisEntries, moves]);
 
-  const playerSummaries = useMemo(() => summarizePlayers(moves, analysisEntries), [analysisEntries, moves]);
+  const playerSummaries = useMemo(() => summarizePlayers(moves, moveTimes, analysisEntries), [analysisEntries, moveTimes, moves]);
 
   const selectedMoveReview = step > 0 ? moveReviews[step] ?? null : null;
   const selectedMoveSan = step > 0 ? moves[step - 1] ?? null : null;
@@ -827,6 +853,9 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
                 <div>
                   <h4 className="gh-analysis-summary__title">{summary.label} Accuracy</h4>
                   <p className="gh-analysis-summary__meta">{summary.moves} analyzed {summary.moves === 1 ? 'move' : 'moves'}</p>
+                  {summary.averageMoveTimeMs !== null && (
+                    <p className="gh-analysis-summary__time">Avg move time {formatMoveDuration(summary.averageMoveTimeMs)}</p>
+                  )}
                 </div>
                 <div className="gh-analysis-summary__accuracy">
                   {summary.accuracy === null ? '—' : `${summary.accuracy.toFixed(1)}%`}
@@ -921,11 +950,16 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
                   onClick={() => goTo(whiteIdx)}
                 >
                   <span className="gh-move__main">{pair.white}</span>
-                  {moveReviews[whiteIdx] && (
-                    <span className={`gh-move-tag gh-move-tag--${moveReviews[whiteIdx]!.tone}`}>
-                      {moveReviews[whiteIdx]!.label}
-                    </span>
-                  )}
+                  <span className="gh-move__meta">
+                    {typeof moveTimes[whiteIdx - 1] === 'number' && (
+                      <span className="gh-move-time">{formatMoveDuration(moveTimes[whiteIdx - 1]!)}</span>
+                    )}
+                    {moveReviews[whiteIdx] && (
+                      <span className={`gh-move-tag gh-move-tag--${moveReviews[whiteIdx]!.tone}`}>
+                        {moveReviews[whiteIdx]!.label}
+                      </span>
+                    )}
+                  </span>
                 </button>
                 {pair.black && (
                   <button
@@ -933,11 +967,16 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
                     onClick={() => goTo(blackIdx)}
                   >
                     <span className="gh-move__main">{pair.black}</span>
-                    {moveReviews[blackIdx] && (
-                      <span className={`gh-move-tag gh-move-tag--${moveReviews[blackIdx]!.tone}`}>
-                        {moveReviews[blackIdx]!.label}
-                      </span>
-                    )}
+                    <span className="gh-move__meta">
+                      {typeof moveTimes[blackIdx - 1] === 'number' && (
+                        <span className="gh-move-time">{formatMoveDuration(moveTimes[blackIdx - 1]!)}</span>
+                      )}
+                      {moveReviews[blackIdx] && (
+                        <span className={`gh-move-tag gh-move-tag--${moveReviews[blackIdx]!.tone}`}>
+                          {moveReviews[blackIdx]!.label}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 )}
               </div>

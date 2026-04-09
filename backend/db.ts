@@ -63,6 +63,11 @@ db.exec(`
   );
 `);
 
+const gameColumns = (db.prepare('PRAGMA table_info(games)') as { all(): Array<{ name: string }> }).all();
+if (!gameColumns.some((column) => column.name === 'move_times_json')) {
+  db.exec(`ALTER TABLE games ADD COLUMN move_times_json TEXT`);
+}
+
 // --- Prepared Statements ---
 
 const findUserByGoogleIdStatement = db.prepare('SELECT * FROM users WHERE google_id = ?') as {
@@ -152,8 +157,8 @@ export function getDueToday(userId: number, now = new Date()): PuzzleProgressRow
 // --- Games ---
 
 const insertGameStatement = db.prepare(`
-  INSERT INTO games (user_id, bot_rating, player_color, result, moves_json, total_moves)
-  VALUES (@userId, @botRating, @playerColor, @result, @movesJson, @totalMoves)
+  INSERT INTO games (user_id, bot_rating, player_color, result, moves_json, move_times_json, total_moves)
+  VALUES (@userId, @botRating, @playerColor, @result, @movesJson, @moveTimesJson, @totalMoves)
 `) as {
   run(params: GameInsert): RunResult;
 };
@@ -164,11 +169,11 @@ const getGamesStatement = db.prepare(`
   WHERE user_id = ?
   ORDER BY played_at DESC
 `) as {
-  all(userId: number): Omit<GameRow, 'moves_json'>[];
+  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json'>[];
 };
 
 const getGameByIdStatement = db.prepare(`
-  SELECT id, played_at, bot_rating, player_color, result, moves_json, total_moves
+  SELECT id, played_at, bot_rating, player_color, result, moves_json, move_times_json, total_moves
   FROM games
   WHERE id = ? AND user_id = ?
 `) as {
@@ -189,7 +194,7 @@ export const insertGame = {
 };
 
 export const getGames = {
-  all(userId: number): Omit<GameRow, 'moves_json'>[] {
+  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json'>[] {
     return getGamesStatement.all(userId);
   },
 };

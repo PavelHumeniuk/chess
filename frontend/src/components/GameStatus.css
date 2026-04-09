@@ -11,6 +11,13 @@
     justify-content: center;
 }
 
+.game-status__body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
 .game-status--check {
     border-color: #e74c3c;
     background: rgba(231, 76, 60, 0.1);
@@ -54,6 +61,12 @@
     font-family: 'Inter', system-ui, sans-serif;
 }
 
+.game-status__timer {
+    font-size: 0.78rem;
+    color: rgba(224, 224, 224, 0.78);
+    letter-spacing: 0.02em;
+}
+
 @keyframes pulse-check {
     from {
         box-shadow: 0 0 8px rgba(231, 76, 60, 0.3);
@@ -72,6 +85,10 @@
 
     .game-status__text {
         font-size: 0.9rem;
+    }
+
+    .game-status__timer {
+        font-size: 0.72rem;
     }
 
     .game-status__turn-dot {

@@ -191,6 +191,70 @@ describe('auth and bot regressions', () => {
     expect(evalMocks.saveGame).not.toHaveBeenCalled();
   });
 
+  it('tracks and saves move times for completed bot games', async () => {
+    vi.useFakeTimers();
+    evalMocks.getStockfishBestMove
+      .mockResolvedValueOnce('e7e5')
+      .mockResolvedValueOnce('b8c6')
+      .mockResolvedValueOnce('g8f6');
+
+    render(<App />);
+
+    fireEvent.click(screen.getByText('Play Bot'));
+    fireEvent.click(screen.getByText('Start Game'));
+
+    expect(screen.getByTestId('game-status-timer')).toHaveTextContent('Your move time: 0.0s');
+
+    await act(async () => {
+      vi.advanceTimersByTime(3200);
+    });
+    expect(screen.getByTestId('game-status-timer')).toHaveTextContent('Your move time: 3.2s');
+
+    fireEvent.click(screen.getByTestId('square-e2'));
+    fireEvent.click(screen.getByTestId('square-e4'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByText('e5')).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+    fireEvent.click(screen.getByTestId('square-f1'));
+    fireEvent.click(screen.getByTestId('square-c4'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByText('Nc6')).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(2800);
+    });
+    fireEvent.click(screen.getByTestId('square-d1'));
+    fireEvent.click(screen.getByTestId('square-h5'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByText('Nf6')).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+    fireEvent.click(screen.getByTestId('square-h5'));
+    fireEvent.click(screen.getByTestId('square-f7'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(evalMocks.saveGame).toHaveBeenCalledWith(expect.objectContaining({
+      moves: ['e4', 'e5', 'Bc4', 'Nc6', 'Qh5', 'Nf6', 'Qxf7#'],
+      moveTimes: [3200, 400, 2100, 400, 2800, 400, 900],
+    }));
+  });
+
   it('ignores a stale endgame bot reply after restarting the position', async () => {
     const firstReply = createDeferred<string | null>();
     const secondReply = createDeferred<string | null>();
