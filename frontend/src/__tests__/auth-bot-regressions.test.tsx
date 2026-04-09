@@ -24,6 +24,7 @@ const evalMocks = vi.hoisted(() => ({
   getStockfishBestMove: vi.fn(() => Promise.resolve('e7e5')),
   reportPuzzleResult: vi.fn(() => Promise.resolve()),
   getPuzzleStats: vi.fn(() => Promise.resolve(null)),
+  saveGame: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../context/AuthContext', () => ({
@@ -42,6 +43,7 @@ vi.mock('../engine/eval', () => ({
   getStockfishBestMove: evalMocks.getStockfishBestMove,
   reportPuzzleResult: evalMocks.reportPuzzleResult,
   getPuzzleStats: evalMocks.getPuzzleStats,
+  saveGame: evalMocks.saveGame,
 }));
 
 vi.mock('@react-oauth/google', () => ({
@@ -100,6 +102,26 @@ describe('auth and bot regressions', () => {
     expect(localStorage.getItem('chess_game_state')).toBeNull();
   });
 
+  it('drops a finished cached game instead of reopening it on startup', () => {
+    localStorage.setItem('chess_game_state', JSON.stringify({
+      fen: 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3',
+      mode: 'bot',
+      playerColor: 'w',
+      skillLevel: 10,
+      currentPuzzle: null,
+      puzzleStep: 0,
+      endgameInfo: null,
+      selectedPolgarType: 'Mate in One',
+      selectedEndgameLevel: 'beginner_class_d',
+    }));
+
+    render(<App />);
+
+    expect(screen.getByText('Start Game')).toBeInTheDocument();
+    expect(screen.queryByTestId('board')).not.toBeInTheDocument();
+    expect(localStorage.getItem('chess_game_state')).toBeNull();
+  });
+
   it('asks the bot for a move after the player moves in bot mode', async () => {
     render(<App />);
 
@@ -140,6 +162,33 @@ describe('auth and bot regressions', () => {
     await waitFor(() => {
       expect(evalMocks.getStockfishBestMove).toHaveBeenCalledWith(expect.any(String), 16, 20);
     }, { timeout: 2000 });
+  });
+
+  it('does not save completed bot games with fewer than five moves', async () => {
+    evalMocks.getStockfishBestMove
+      .mockResolvedValueOnce('e7e5')
+      .mockResolvedValueOnce('d8h4');
+
+    render(<App />);
+
+    fireEvent.click(screen.getByText('Play Bot'));
+    fireEvent.click(screen.getByText('Start Game'));
+
+    fireEvent.click(screen.getByTestId('square-f2'));
+    fireEvent.click(screen.getByTestId('square-f3'));
+
+    await waitFor(() => {
+      expect(screen.getByText('e5')).toBeInTheDocument();
+    }, { timeout: 2000 });
+
+    fireEvent.click(screen.getByTestId('square-g2'));
+    fireEvent.click(screen.getByTestId('square-g4'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('game-status')).toHaveTextContent('Checkmate');
+    }, { timeout: 2000 });
+
+    expect(evalMocks.saveGame).not.toHaveBeenCalled();
   });
 
   it('ignores a stale endgame bot reply after restarting the position', async () => {

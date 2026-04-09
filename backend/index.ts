@@ -534,6 +534,7 @@ api.post('/puzzle/result', requireAuth, (req: RequestLike<{ id?: unknown; succes
 });
 
 // ─── Games API ────────────────────────────────────────────────────────────────
+const MIN_SAVED_GAME_MOVES = 5;
 
 // POST /games — save a finished bot game
 api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerColor?: unknown; result?: unknown; moves?: unknown }>, res: ResponseLike) => {
@@ -551,6 +552,9 @@ api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerC
   }
   if (!Array.isArray(moves)) {
     return res.status(400).json({ error: 'moves must be an array' });
+  }
+  if (moves.length < MIN_SAVED_GAME_MOVES) {
+    return res.status(400).json({ error: `games must include at least ${MIN_SAVED_GAME_MOVES} moves` });
   }
 
   const info = insertGame.run({

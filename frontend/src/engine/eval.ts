@@ -1,4 +1,5 @@
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/api';
+const MIN_SAVED_GAME_MOVES = 5;
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
@@ -182,6 +183,10 @@ export async function saveGame(payload: {
   result: 'win' | 'loss' | 'draw';
   moves: string[];
 }): Promise<void> {
+  if (payload.moves.length < MIN_SAVED_GAME_MOVES) {
+    return;
+  }
+
   try {
     const response = await fetch(apiUrl('/games'), {
       method: 'POST',

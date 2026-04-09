@@ -35,6 +35,8 @@ interface PendingPromotion {
   to: Square;
 }
 
+const MIN_SAVED_GAME_MOVES = 5;
+
 function normalizeEvalForWhite(fen: string, score: number, mate: number | null) {
   const multiplier = fen.split(' ')[1] === 'b' ? -1 : 1;
   return {
@@ -46,7 +48,7 @@ function normalizeEvalForWhite(fen: string, score: number, mate: number | null) 
 function App() {
   const { loadState, saveState, clearState } = usePersistence();
   const { user, loading, logout } = useAuth();
-  const initialData = loadState();
+  const [initialData] = useState<GameState | null>(() => loadState());
 
   const {
     game,
@@ -142,21 +144,24 @@ function App() {
 
   // Persistence: Save state
   useEffect(() => {
-    if (!isSetup) {
-      const state: GameState = {
-        fen: game.fen(),
-        mode: gameMode,
-        playerColor,
-        skillLevel,
-        currentPuzzle,
-        puzzleStep,
-        endgameInfo,
-        selectedPolgarType,
-        selectedEndgameLevel
-      };
-      saveState(state);
+    if (isSetup || game.isGameOver() || history.length === 0) {
+      clearState();
+      return;
     }
-  }, [history, isSetup, gameMode, playerColor, skillLevel, currentPuzzle, puzzleStep, endgameInfo, selectedPolgarType, selectedEndgameLevel, saveState, game]);
+
+    const state: GameState = {
+      fen: game.fen(),
+      mode: gameMode,
+      playerColor,
+      skillLevel,
+      currentPuzzle,
+      puzzleStep,
+      endgameInfo,
+      selectedPolgarType,
+      selectedEndgameLevel
+    };
+    saveState(state);
+  }, [history, isSetup, gameMode, playerColor, skillLevel, currentPuzzle, puzzleStep, endgameInfo, selectedPolgarType, selectedEndgameLevel, saveState, clearState, game]);
 
   // Trigger evaluation whenever history changes
   useEffect(() => {
@@ -206,13 +211,18 @@ function App() {
     if (!isOver || gameSavedRef.current) return;
     gameSavedRef.current = true;
 
+    const moves = game.history();
+    if (moves.length < MIN_SAVED_GAME_MOVES) {
+      return;
+    }
+
     let result: 'win' | 'loss' | 'draw';
     if (status.state === 'checkmate') {
       result = status.winner === playerColor ? 'win' : 'loss';
     } else {
       result = 'draw';
     }
-    void saveGame({ botRating: botElo, playerColor, result, moves: game.history() });
+    void saveGame({ botRating: botElo, playerColor, result, moves });
   }, [status, gameMode, isSetup, user, playerColor, botElo, game]);
 
   const handleSquareClick = useCallback(
