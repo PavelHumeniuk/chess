@@ -23,11 +23,23 @@ interface PositionAnalysis {
   bestMoveSan: string | null;
 }
 
+type MoveCategory = 'best' | 'good' | 'missed' | 'mistake' | 'blunder';
+
 interface MoveReview {
-  label: 'Best' | 'Missed opportunity' | 'Mistake' | 'Blunder';
-  tone: 'best' | 'missed' | 'mistake' | 'blunder';
+  category: MoveCategory;
+  label: 'Best' | 'Good' | 'Missed opportunity' | 'Mistake' | 'Blunder';
+  tone: MoveCategory;
   loss: number;
   bestMoveSan: string | null;
+  accuracy: number;
+}
+
+interface PlayerAnalysisSummary {
+  color: TurnColor;
+  label: string;
+  accuracy: number | null;
+  moves: number;
+  categories: Record<MoveCategory, number>;
 }
 
 interface ReplayPosition {
@@ -121,35 +133,82 @@ function buildPositionAnalysis(fen: string, analysis: EngineAnalysis): PositionA
   };
 }
 
+function moveAccuracy(loss: number): number {
+  const normalized = Math.max(0, loss);
+  return Math.max(0, Math.min(100, Math.round((100 - normalized / 4) * 10) / 10));
+}
+
 function classifyMoveReview(
   moveIndex: number,
   playedSan: string,
   before: PositionAnalysis,
   after: PositionAnalysis,
-): MoveReview | null {
+): MoveReview {
   const mover: TurnColor = moveIndex % 2 === 0 ? 'w' : 'b';
   const bestMoveSan = before.bestMoveSan;
   const beforeScore = scoreForMover(before.score, mover);
   const afterScore = scoreForMover(after.score, mover);
-  const loss = beforeScore - afterScore;
+  const loss = Math.max(0, beforeScore - afterScore);
+  const accuracy = bestMoveSan && normalizeSan(bestMoveSan) === normalizeSan(playedSan)
+    ? 100
+    : moveAccuracy(loss);
 
   if (bestMoveSan && normalizeSan(bestMoveSan) === normalizeSan(playedSan)) {
-    return { label: 'Best', tone: 'best', loss, bestMoveSan };
+    return { category: 'best', label: 'Best', tone: 'best', loss, bestMoveSan, accuracy };
   }
 
   if (loss >= 250) {
-    return { label: 'Blunder', tone: 'blunder', loss, bestMoveSan };
+    return { category: 'blunder', label: 'Blunder', tone: 'blunder', loss, bestMoveSan, accuracy };
   }
 
   if (loss >= 120) {
-    return { label: 'Mistake', tone: 'mistake', loss, bestMoveSan };
+    return { category: 'mistake', label: 'Mistake', tone: 'mistake', loss, bestMoveSan, accuracy };
   }
 
   if (loss >= 70 && beforeScore >= 125) {
-    return { label: 'Missed opportunity', tone: 'missed', loss, bestMoveSan };
+    return { category: 'missed', label: 'Missed opportunity', tone: 'missed', loss, bestMoveSan, accuracy };
   }
 
-  return null;
+  return { category: 'good', label: 'Good', tone: 'good', loss, bestMoveSan, accuracy };
+}
+
+function summarizePlayers(moves: string[], analysisEntries: Record<number, PositionAnalysis>): PlayerAnalysisSummary[] | null {
+  const seed = (): Record<MoveCategory, number> => ({
+    best: 0,
+    good: 0,
+    missed: 0,
+    mistake: 0,
+    blunder: 0,
+  });
+
+  const summaries: Record<TurnColor, PlayerAnalysisSummary & { accuracyTotal: number }> = {
+    w: { color: 'w', label: 'White', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0 },
+    b: { color: 'b', label: 'Black', accuracy: null, moves: 0, categories: seed(), accuracyTotal: 0 },
+  };
+
+  for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
+    const before = analysisEntries[moveIndex];
+    const after = analysisEntries[moveIndex + 1];
+    if (!before || !after) return null;
+
+    const mover: TurnColor = moveIndex % 2 === 0 ? 'w' : 'b';
+    const review = classifyMoveReview(moveIndex, moves[moveIndex]!, before, after);
+    const summary = summaries[mover];
+    summary.moves += 1;
+    summary.categories[review.category] += 1;
+    summary.accuracyTotal += review.accuracy;
+  }
+
+  return (['w', 'b'] as const).map((color) => {
+    const summary = summaries[color];
+    return {
+      color,
+      label: summary.label,
+      moves: summary.moves,
+      categories: summary.categories,
+      accuracy: summary.moves > 0 ? Math.round((summary.accuracyTotal / summary.moves) * 10) / 10 : null,
+    };
+  });
 }
 
 function captureReplayPosition(game: ChessGame, lastMove: { from: Square; to: Square } | null): ReplayPosition {
@@ -541,6 +600,14 @@ interface GameReplayProps {
   deletingGameId: number | null;
 }
 
+function toEvalSeries(totalSteps: number, cache: Map<number, PositionAnalysis>): (number | null)[] {
+  return Array.from({ length: totalSteps + 1 }, (_, index) => cache.get(index)?.score ?? null);
+}
+
+function toAnalysisRecord(cache: Map<number, PositionAnalysis>): Record<number, PositionAnalysis> {
+  return Object.fromEntries(cache.entries()) as Record<number, PositionAnalysis>;
+}
+
 function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps) {
   const moves = useMemo(() => game.moves ?? [], [game.moves]);
   const positions = useMemo(() => buildReplayPositions(moves), [moves]);
@@ -553,6 +620,7 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
   const [analysisEntries, setAnalysisEntries] = useState<Record<number, PositionAnalysis>>({});
   const analysisCache = useRef<Map<number, PositionAnalysis>>(new Map());
   const pendingAnalysis = useRef<Map<number, Promise<PositionAnalysis | null>>>(new Map());
+  const analysisRunId = useRef(0);
   const moveListRef = useRef<HTMLDivElement>(null);
 
   const goTo = useCallback((target: number) => {
@@ -597,6 +665,10 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     return request;
   }, [positions, storeAnalysis]);
 
+  useEffect(() => () => {
+    analysisRunId.current += 1;
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Don't intercept if focus is in an input
@@ -611,7 +683,9 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
   useEffect(() => {
     if (!moveListRef.current) return;
     const active = moveListRef.current.querySelector('.gh-move--active');
-    active?.scrollIntoView({ block: 'nearest' });
+    if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ block: 'nearest' });
+    }
   }, [step]);
 
   const currentPosition = positions[step] ?? positions[0]!;
@@ -636,18 +710,46 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
 
   const runFullAnalysis = async () => {
     if (isAnalyzingGame) return;
+    const runId = analysisRunId.current + 1;
+    analysisRunId.current = runId;
     setIsAnalyzingGame(true);
     setAnalyzedCount(0);
 
-    for (let i = 0; i <= moves.length; i++) {
-      if (analysisCache.current.has(i)) {
-        setAnalyzedCount(c => c + 1);
-        continue;
+    const collected = new Map(analysisCache.current);
+    const batchSize = 4;
+    let completed = 0;
+
+    for (let start = 0; start <= moves.length; start += batchSize) {
+      const batch = Array.from(
+        { length: Math.min(batchSize, moves.length - start + 1) },
+        (_, offset) => start + offset,
+      );
+
+      const results = await Promise.all(batch.map(async (targetStep) => {
+        const analysis = collected.get(targetStep) ?? await ensureAnalysis(targetStep, 10, 3);
+        return { targetStep, analysis };
+      }));
+
+      if (analysisRunId.current !== runId) {
+        return;
       }
-      await ensureAnalysis(i, 10, 3);
-      setAnalyzedCount(c => c + 1);
+
+      for (const { targetStep, analysis } of results) {
+        if (analysis) {
+          collected.set(targetStep, analysis);
+        }
+        completed += 1;
+      }
+
+      setAnalyzedCount(completed);
+      analysisCache.current = new Map(collected);
+      setAnalysisEntries(toAnalysisRecord(collected));
+      setEvals(toEvalSeries(moves.length, collected));
     }
-    setIsAnalyzingGame(false);
+
+    if (analysisRunId.current === runId) {
+      setIsAnalyzingGame(false);
+    }
   };
 
   const movePairs: { number: number; white: string; black?: string }[] = [];
@@ -664,13 +766,15 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
       if (!before || !after) continue;
 
       const review = classifyMoveReview(moveIndex, moves[moveIndex]!, before, after);
-      if (review) {
+      if (review.category !== 'good') {
         reviews[moveIndex + 1] = review;
       }
     }
 
     return reviews;
   }, [analysisEntries, moves]);
+
+  const playerSummaries = useMemo(() => summarizePlayers(moves, analysisEntries), [analysisEntries, moves]);
 
   const selectedMoveReview = step > 0 ? moveReviews[step] ?? null : null;
   const selectedMoveSan = step > 0 ? moves[step - 1] ?? null : null;
@@ -711,6 +815,56 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
         )}
       </div>
 
+      {playerSummaries ? (
+        <div className="gh-analysis-summary">
+          {playerSummaries.map((summary) => (
+            <section
+              key={summary.color}
+              className="gh-analysis-summary__card"
+              data-testid={`gh-summary-${summary.color}`}
+            >
+              <div className="gh-analysis-summary__top">
+                <div>
+                  <h4 className="gh-analysis-summary__title">{summary.label} Accuracy</h4>
+                  <p className="gh-analysis-summary__meta">{summary.moves} analyzed {summary.moves === 1 ? 'move' : 'moves'}</p>
+                </div>
+                <div className="gh-analysis-summary__accuracy">
+                  {summary.accuracy === null ? '—' : `${summary.accuracy.toFixed(1)}%`}
+                </div>
+              </div>
+              <div className="gh-analysis-summary__grid">
+                <div className="gh-analysis-stat gh-analysis-stat--best">
+                  <span className="gh-analysis-stat__label">Best</span>
+                  <strong>{summary.categories.best}</strong>
+                </div>
+                <div className="gh-analysis-stat gh-analysis-stat--good">
+                  <span className="gh-analysis-stat__label">Good</span>
+                  <strong>{summary.categories.good}</strong>
+                </div>
+                <div className="gh-analysis-stat gh-analysis-stat--missed">
+                  <span className="gh-analysis-stat__label">Missed</span>
+                  <strong>{summary.categories.missed}</strong>
+                </div>
+                <div className="gh-analysis-stat gh-analysis-stat--mistake">
+                  <span className="gh-analysis-stat__label">Mistake</span>
+                  <strong>{summary.categories.mistake}</strong>
+                </div>
+                <div className="gh-analysis-stat gh-analysis-stat--blunder">
+                  <span className="gh-analysis-stat__label">Blunder</span>
+                  <strong>{summary.categories.blunder}</strong>
+                </div>
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="gh-analysis-summary gh-analysis-summary--pending">
+          <div className="gh-analysis-summary__empty">
+            Analyze the full game to see per-player accuracy and move-category totals.
+          </div>
+        </div>
+      )}
+
       <div className="gh-replay__body">
         <div className="gh-replay__board-wrap">
           <Board
@@ -722,17 +876,36 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
             isFlipped={isFlipped}
             onSquareClick={() => {/* read-only */}}
           />
-          <div className="gh-controls">
-            <button className="gh-ctrl-btn" onClick={() => goTo(0)} disabled={step === 0} title="Start">⏮</button>
-            <button className="gh-ctrl-btn" onClick={() => goTo(step - 1)} disabled={step === 0} title="Previous (←)">◀</button>
-            <span className="gh-ctrl-counter">{step} / {moves.length}</span>
-            <button className="gh-ctrl-btn" onClick={() => goTo(step + 1)} disabled={step === moves.length} title="Next (→)">▶</button>
-            <button className="gh-ctrl-btn" onClick={() => goTo(moves.length)} disabled={step === moves.length} title="End">⏭</button>
+          <div className="gh-controls" role="group" aria-label="Replay controls">
+            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(0)} disabled={step === 0} title="Start" aria-label="Go to start">
+              <span className="gh-ctrl-btn__icon">⏮</span>
+              <span className="gh-ctrl-btn__label">Start</span>
+            </button>
+            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step - 1)} disabled={step === 0} title="Previous (←)" aria-label="Previous move">
+              <span className="gh-ctrl-btn__icon">◀</span>
+              <span className="gh-ctrl-btn__label">Prev</span>
+            </button>
+            <span className="gh-ctrl-counter" aria-live="polite">Move {step} of {moves.length}</span>
+            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step + 1)} disabled={step === moves.length} title="Next (→)" aria-label="Next move">
+              <span className="gh-ctrl-btn__label">Next</span>
+              <span className="gh-ctrl-btn__icon">▶</span>
+            </button>
+            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(moves.length)} disabled={step === moves.length} title="End" aria-label="Go to end">
+              <span className="gh-ctrl-btn__label">End</span>
+              <span className="gh-ctrl-btn__icon">⏭</span>
+            </button>
           </div>
-          <p className="gh-controls__hint">← → to navigate</p>
+          <p className="gh-controls__hint">Use the buttons or your keyboard arrows to navigate</p>
         </div>
 
         <div className="gh-replay__sidebar">
+          <div className="gh-replay__sidebar-head">
+            <div>
+              <h4 className="gh-replay__sidebar-title">Moves</h4>
+              <p className="gh-replay__sidebar-subtitle">Tap any move to jump to that position</p>
+            </div>
+            <span className="gh-replay__sidebar-step">Move {step} / {moves.length}</span>
+          </div>
           <div className="gh-replay__moves" ref={moveListRef}>
             <div className="gh-move-row gh-move-row--header">
               <span>#</span><span>White</span><span>Black</span>
