@@ -1,6 +1,7 @@
 import React from 'react';
 import PieceComponent from './Piece';
 import type { Piece as PieceType, Square as SquareType } from '../engine/types';
+import type { SquareBadge } from './Board';
 import './Square.css';
 
 interface SquareProps {
@@ -12,6 +13,7 @@ interface SquareProps {
     isLastMoveFrom: boolean;
     isLastMoveTo: boolean;
     isKingInCheck: boolean;
+    badge?: SquareBadge | null;
     onClick: (square: SquareType) => void;
     onDropPiece?: (source: SquareType, target: SquareType) => void;
 }
@@ -25,6 +27,7 @@ const Square: React.FC<SquareProps> = ({
     isLastMoveFrom,
     isLastMoveTo,
     isKingInCheck,
+    badge,
     onClick,
     onDropPiece,
 }) => {
@@ -69,6 +72,15 @@ const Square: React.FC<SquareProps> = ({
             )}
             {isLegalTarget && !piece && <div className="square__legal-dot" />}
             {isLegalTarget && piece && <div className="square__legal-capture" />}
+            {badge && (
+                <span
+                    className={`square__badge square__badge--${badge.tone}`}
+                    data-testid={`square-badge-${square}`}
+                    aria-label={`${badge.tone} marker`}
+                >
+                    {badge.text}
+                </span>
+            )}
         </div>
     );
 };

@@ -53,6 +53,42 @@
     pointer-events: none;
 }
 
+.square__badge {
+    position: absolute;
+    top: 0.22rem;
+    right: 0.22rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.45rem;
+    min-height: 1.1rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #101010;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+}
+
+.square__badge--missed {
+    background: #f7c95c;
+    color: #533500;
+}
+
+.square__badge--mistake {
+    background: #f29a5e;
+    color: #4a1c00;
+}
+
+.square__badge--blunder {
+    background: #e06b6b;
+    color: #fff3f3;
+}
+
 .square:hover {
     filter: brightness(1.05);
 }

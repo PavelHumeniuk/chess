@@ -98,6 +98,7 @@ export interface GameRow {
   result: 'win' | 'loss' | 'draw';
   moves_json: string;
   move_times_json: string | null;
+  move_notes_json: string | null;
   total_moves: number;
 }
 
@@ -108,5 +109,6 @@ export interface GameInsert {
   result: 'win' | 'loss' | 'draw';
   movesJson: string;
   moveTimesJson: string;
+  moveNotesJson: string;
   totalMoves: number;
 }

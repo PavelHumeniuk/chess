@@ -9,6 +9,18 @@ function authHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json' };
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  payload: unknown;
+
+  constructor(message: string, status: number, payload: unknown) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function parseJsonOrThrow(response: Response) {
   let data: unknown = null;
   try {
@@ -20,7 +32,7 @@ async function parseJsonOrThrow(response: Response) {
     const message = typeof data === 'object' && data && 'error' in data
       ? String((data as { error?: string }).error || 'Request failed')
       : `Request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, data);
   }
   return data;
 }
@@ -137,6 +149,20 @@ export async function getAnalysis(
   }
 }
 
+export async function getAnalysisOrThrow(
+  fen: string,
+  depth: number = 12,
+  multiPv: number = 3,
+): Promise<EngineAnalysis> {
+  const response = await fetch(apiUrl('/analyze'), {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ fen, depth, multiPv }),
+  });
+  return await parseJsonOrThrow(response) as EngineAnalysis;
+}
+
 
 // ─── Progress / Stats ─────────────────────────────────────────────────────────
 
@@ -176,6 +202,7 @@ export interface GameRecord {
   total_moves: number;
   moves?: string[];
   move_times?: number[];
+  move_notes?: string[];
 }
 
 export async function saveGame(payload: {
@@ -229,4 +256,15 @@ export async function deleteGame(id: number): Promise<void> {
     credentials: 'include',
   });
   await parseJsonOrThrow(response);
+}
+
+export async function updateGameMoveNotes(id: number, moveNotes: string[]): Promise<string[]> {
+  const response = await fetch(apiUrl(`/games/${id}/notes`), {
+    method: 'PATCH',
+    headers: authHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ moveNotes }),
+  });
+  const data = await parseJsonOrThrow(response) as { move_notes?: string[] };
+  return Array.isArray(data.move_notes) ? data.move_notes : [];
 }

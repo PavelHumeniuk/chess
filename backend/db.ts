@@ -64,9 +64,22 @@ db.exec(`
 `);
 
 const gameColumns = (db.prepare('PRAGMA table_info(games)') as { all(): Array<{ name: string }> }).all();
-if (!gameColumns.some((column) => column.name === 'move_times_json')) {
-  db.exec(`ALTER TABLE games ADD COLUMN move_times_json TEXT`);
+function ensureGameColumn(columnName: string, definition: string): void {
+  if (gameColumns.some((column) => column.name === columnName)) {
+    return;
+  }
+
+  try {
+    db.exec(`ALTER TABLE games ADD COLUMN ${columnName} ${definition}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes(`duplicate column name: ${columnName}`)) {
+      throw error;
+    }
+  }
 }
+ensureGameColumn('move_times_json', 'TEXT');
+ensureGameColumn('move_notes_json', 'TEXT');
 
 // --- Prepared Statements ---
 
@@ -157,8 +170,8 @@ export function getDueToday(userId: number, now = new Date()): PuzzleProgressRow
 // --- Games ---
 
 const insertGameStatement = db.prepare(`
-  INSERT INTO games (user_id, bot_rating, player_color, result, moves_json, move_times_json, total_moves)
-  VALUES (@userId, @botRating, @playerColor, @result, @movesJson, @moveTimesJson, @totalMoves)
+  INSERT INTO games (user_id, bot_rating, player_color, result, moves_json, move_times_json, move_notes_json, total_moves)
+  VALUES (@userId, @botRating, @playerColor, @result, @movesJson, @moveTimesJson, @moveNotesJson, @totalMoves)
 `) as {
   run(params: GameInsert): RunResult;
 };
@@ -169,15 +182,23 @@ const getGamesStatement = db.prepare(`
   WHERE user_id = ?
   ORDER BY played_at DESC
 `) as {
-  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json'>[];
+  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json' | 'move_notes_json'>[];
 };
 
 const getGameByIdStatement = db.prepare(`
-  SELECT id, played_at, bot_rating, player_color, result, moves_json, move_times_json, total_moves
+  SELECT id, played_at, bot_rating, player_color, result, moves_json, move_times_json, move_notes_json, total_moves
   FROM games
   WHERE id = ? AND user_id = ?
 `) as {
   get(id: number, userId: number): GameRow | undefined;
+};
+
+const updateGameNotesStatement = db.prepare(`
+  UPDATE games
+  SET move_notes_json = ?
+  WHERE id = ? AND user_id = ?
+`) as {
+  run(moveNotesJson: string, id: number, userId: number): ChangeResult;
 };
 
 const deleteGameByIdStatement = db.prepare(`
@@ -194,7 +215,7 @@ export const insertGame = {
 };
 
 export const getGames = {
-  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json'>[] {
+  all(userId: number): Omit<GameRow, 'moves_json' | 'move_times_json' | 'move_notes_json'>[] {
     return getGamesStatement.all(userId);
   },
 };
@@ -208,6 +229,12 @@ export const getGameById = {
 export const deleteGameById = {
   run(id: number, userId: number): ChangeResult {
     return deleteGameByIdStatement.run(id, userId);
+  },
+};
+
+export const updateGameNotes = {
+  run(moveNotesJson: string, id: number, userId: number): ChangeResult {
+    return updateGameNotesStatement.run(moveNotesJson, id, userId);
   },
 };
 

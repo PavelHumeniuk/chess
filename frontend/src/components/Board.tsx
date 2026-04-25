@@ -8,12 +8,18 @@ interface LastMove {
     to: Square;
 }
 
+export interface SquareBadge {
+    text: string;
+    tone: 'missed' | 'mistake' | 'blunder';
+}
+
 interface BoardProps {
     board: BoardData;
     selectedSquare: Square | null;
     legalMoves: Square[];
     lastMove: LastMove | null;
     kingInCheck: Square | null;
+    squareBadges?: Partial<Record<Square, SquareBadge>>;
     isFlipped?: boolean;
     onSquareClick: (square: Square) => void;
     onDropPiece?: (source: Square, target: Square) => void;
@@ -28,6 +34,7 @@ const Board: React.FC<BoardProps> = ({
     legalMoves,
     lastMove,
     kingInCheck,
+    squareBadges,
     isFlipped = false,
     onSquareClick,
     onDropPiece,
@@ -57,6 +64,7 @@ const Board: React.FC<BoardProps> = ({
                                 isLastMoveFrom={lastMove?.from === square}
                                 isLastMoveTo={lastMove?.to === square}
                                 isKingInCheck={kingInCheck === square}
+                                badge={squareBadges?.[square] ?? null}
                                 onClick={onSquareClick}
                                 onDropPiece={onDropPiece}
                             />

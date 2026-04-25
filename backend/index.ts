@@ -13,6 +13,7 @@ import {
   getGames,
   getPuzzleProgress,
   insertGame,
+  updateGameNotes,
   upsertPuzzleProgress,
 } from './db';
 import requireAuth from './middleware/requireAuth';
@@ -536,6 +537,15 @@ api.post('/puzzle/result', requireAuth, (req: RequestLike<{ id?: unknown; succes
 
 // ─── Games API ────────────────────────────────────────────────────────────────
 const MIN_SAVED_GAME_MOVES = 5;
+const MAX_MOVE_NOTE_LENGTH = 1000;
+
+function normalizeMoveNotes(raw: unknown, totalMoves: number): string[] {
+  const values = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: totalMoves }, (_, index) => {
+    const value = values[index];
+    return typeof value === 'string' ? value.slice(0, MAX_MOVE_NOTE_LENGTH) : '';
+  });
+}
 
 // POST /games — save a finished bot game
 api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerColor?: unknown; result?: unknown; moves?: unknown; moveTimes?: unknown }>, res: ResponseLike) => {
@@ -569,6 +579,7 @@ api.post('/games', requireAuth, (req: RequestLike<{ botRating?: unknown; playerC
     result: result as 'win' | 'loss' | 'draw',
     movesJson: JSON.stringify(moves),
     moveTimesJson: JSON.stringify(Array.isArray(moveTimes) ? moveTimes : []),
+    moveNotesJson: JSON.stringify(Array.from({ length: moves.length }, () => '')),
     totalMoves: moves.length,
   });
 
@@ -591,10 +602,43 @@ api.get('/games/:id', requireAuth, (req: RequestLike<unknown, Record<string, unk
 
   let moves: string[] = [];
   let moveTimes: number[] = [];
+  let moveNotes: string[] = [];
   try { moves = JSON.parse(row.moves_json) as string[]; } catch { /* leave empty */ }
   try { moveTimes = row.move_times_json ? JSON.parse(row.move_times_json) as number[] : []; } catch { /* leave empty */ }
+  try { moveNotes = normalizeMoveNotes(row.move_notes_json ? JSON.parse(row.move_notes_json) as unknown[] : [], moves.length); } catch { moveNotes = normalizeMoveNotes([], moves.length); }
 
-  return res.json({ ...row, moves, move_times: moveTimes, moves_json: undefined, move_times_json: undefined });
+  return res.json({
+    ...row,
+    moves,
+    move_times: moveTimes,
+    move_notes: moveNotes,
+    moves_json: undefined,
+    move_times_json: undefined,
+    move_notes_json: undefined,
+  });
+});
+
+// PATCH /games/:id/notes — update private per-move notes for a saved game
+api.patch('/games/:id/notes', requireAuth, (req: RequestLike<{ moveNotes?: unknown }, Record<string, unknown>, { id: string }>, res: ResponseLike) => {
+  const id = parseIntegerInRange(req.params?.id, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (id === 0) return res.status(400).json({ error: 'Invalid game id' });
+
+  const row = getGameById.get(id, req.user!.id);
+  if (!row) return res.status(404).json({ error: 'Game not found' });
+
+  const moveNotes = req.body?.moveNotes;
+  if (!Array.isArray(moveNotes) || moveNotes.length !== row.total_moves) {
+    return res.status(400).json({ error: 'moveNotes must be a string array matching the saved move count' });
+  }
+  if (moveNotes.some((value) => typeof value !== 'string')) {
+    return res.status(400).json({ error: 'moveNotes must contain only strings' });
+  }
+  if (moveNotes.some((value) => typeof value === 'string' && value.length > MAX_MOVE_NOTE_LENGTH)) {
+    return res.status(400).json({ error: `moveNotes entries must be at most ${MAX_MOVE_NOTE_LENGTH} characters` });
+  }
+
+  updateGameNotes.run(JSON.stringify(moveNotes), id, req.user!.id);
+  return res.json({ ok: true, move_notes: normalizeMoveNotes(moveNotes, row.total_moves) });
 });
 
 // DELETE /games/:id — remove a saved game for the logged-in user
@@ -630,3 +674,4 @@ if (require.main === module) {
 }
 
 export default app;
+export { api };

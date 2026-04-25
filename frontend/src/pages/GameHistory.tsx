@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Board from '../components/Board';
-import { getGames, getGame, getAnalysis, deleteGame } from '../engine/eval';
+import {
+  getGames,
+  getGame,
+  getAnalysis,
+  getAnalysisOrThrow,
+  deleteGame,
+  updateGameMoveNotes,
+} from '../engine/eval';
 import type { GameRecord, EngineAnalysis } from '../engine/eval';
 import { ChessGame } from '../engine/ChessGame';
 import type { Board as BoardData, Square } from '../engine/types';
@@ -9,6 +16,8 @@ import './GameHistory.css';
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 type TurnColor = 'w' | 'b';
+type StepChangeSource = 'controls' | 'move-list' | 'keyboard' | 'graph';
+type ReviewBadgeTone = Extract<MoveCategory, 'missed' | 'mistake' | 'blunder'>;
 
 interface ReviewLine {
   score: number;
@@ -49,6 +58,16 @@ interface ReplayPosition {
   kingInCheck: Square | null;
   fen: string;
 }
+
+const OVERVIEW_DEPTH = 6;
+const OVERVIEW_MULTI_PV = 1;
+const PREMOVE_DETAIL_DEPTH = 12;
+const PREMOVE_DETAIL_MULTI_PV = 3;
+const POSTMOVE_DETAIL_DEPTH = 10;
+const POSTMOVE_DETAIL_MULTI_PV = 2;
+const OVERVIEW_RETRY_DELAY_MS = 1000;
+const OVERVIEW_STEP_DELAY_MS = 100;
+const NOTE_SAVE_DEBOUNCE_MS = 600;
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -106,7 +125,65 @@ function formatMoveDuration(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-function toSanLine(fen: string, pv: string[], maxMoves = 4): string[] {
+function normalizeMoveNotes(moveNotes: string[] | undefined, totalMoves: number): string[] {
+  return Array.from({ length: totalMoves }, (_, index) => (
+    typeof moveNotes?.[index] === 'string' ? moveNotes[index]! : ''
+  ));
+}
+
+function hasMoveNote(note: string | null | undefined): boolean {
+  return (note ?? '').trim().length > 0;
+}
+
+function detailBeforeKey(step: number): string {
+  return `before:${step}`;
+}
+
+function detailAfterKey(step: number): string {
+  return `after:${step}`;
+}
+
+function readErrorStatus(error: unknown): number | null {
+  if (typeof error === 'object' && error && 'status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+  return null;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function formatMoveReference(step: number, san: string): string {
+  const moveNumber = Math.ceil(step / 2);
+  return step % 2 === 1 ? `${moveNumber}.${san}` : `${moveNumber}...${san}`;
+}
+
+function formatSanSummary(sanLine: string[]): string {
+  if (sanLine.length === 0) {
+    return '...';
+  }
+  const visible = sanLine.slice(0, 6);
+  return visible.length < sanLine.length ? `${visible.join(' ')} ...` : visible.join(' ');
+}
+
+function badgeTextForReview(review: MoveReview): string | null {
+  if (review.tone === 'missed') return '?!';
+  if (review.tone === 'mistake') return '?';
+  if (review.tone === 'blunder') return '??';
+  return null;
+}
+
+function badgeToneForReview(review: MoveReview): ReviewBadgeTone | null {
+  if (review.tone === 'missed' || review.tone === 'mistake' || review.tone === 'blunder') {
+    return review.tone;
+  }
+  return null;
+}
+
+function toSanLine(fen: string, pv: string[], maxMoves = 6): string[] {
   const game = new ChessGame(fen);
   const sanLine: string[] = [];
 
@@ -613,14 +690,6 @@ interface GameReplayProps {
   deletingGameId: number | null;
 }
 
-function toEvalSeries(totalSteps: number, cache: Map<number, PositionAnalysis>): (number | null)[] {
-  return Array.from({ length: totalSteps + 1 }, (_, index) => cache.get(index)?.score ?? null);
-}
-
-function toAnalysisRecord(cache: Map<number, PositionAnalysis>): Record<number, PositionAnalysis> {
-  return Object.fromEntries(cache.entries()) as Record<number, PositionAnalysis>;
-}
-
 function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps) {
   const moves = useMemo(() => game.moves ?? [], [game.moves]);
   const moveTimes = useMemo(() => game.move_times ?? [], [game.move_times]);
@@ -629,23 +698,34 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
   const [evals, setEvals] = useState<(number | null)[]>(new Array(moves.length + 1).fill(null));
   const [isAnalyzingGame, setIsAnalyzingGame] = useState(false);
   const [analyzedCount, setAnalyzedCount] = useState(0);
-
   const [isAnalyzingMove, setIsAnalyzingMove] = useState(false);
-  const [analysisEntries, setAnalysisEntries] = useState<Record<number, PositionAnalysis>>({});
-  const analysisCache = useRef<Map<number, PositionAnalysis>>(new Map());
-  const pendingAnalysis = useRef<Map<number, Promise<PositionAnalysis | null>>>(new Map());
+  const [overviewEntries, setOverviewEntries] = useState<Record<number, PositionAnalysis>>({});
+  const overviewCache = useRef<Map<number, PositionAnalysis>>(new Map());
+  const pendingOverview = useRef<Map<number, Promise<PositionAnalysis | null>>>(new Map());
+  const [detailEntries, setDetailEntries] = useState<Record<string, PositionAnalysis>>({});
+  const detailCache = useRef<Map<string, PositionAnalysis>>(new Map());
+  const pendingDetail = useRef<Map<string, Promise<PositionAnalysis | null>>>(new Map());
   const analysisRunId = useRef(0);
   const moveListRef = useRef<HTMLDivElement>(null);
+  const stepScrollSource = useRef<StepChangeSource>('controls');
+  const [savedMoveNotes, setSavedMoveNotes] = useState<string[]>(() => normalizeMoveNotes(game.move_notes, moves.length));
+  const [draftMoveNotes, setDraftMoveNotes] = useState<string[]>(() => normalizeMoveNotes(game.move_notes, moves.length));
+  const [notesSaveError, setNotesSaveError] = useState<string | null>(null);
+  const savedMoveNotesRef = useRef(savedMoveNotes);
+  const draftMoveNotesRef = useRef(draftMoveNotes);
+  const noteSaveInFlight = useRef(false);
+  const noteSaveQueued = useRef(false);
 
-  const goTo = useCallback((target: number) => {
+  const goTo = useCallback((target: number, source: StepChangeSource = 'controls') => {
+    stepScrollSource.current = source;
     setStep(Math.max(0, Math.min(moves.length, target)));
   }, [moves.length]);
 
-
-
-  const storeAnalysis = useCallback((targetStep: number, analysis: PositionAnalysis) => {
-    analysisCache.current.set(targetStep, analysis);
-    setAnalysisEntries((prev) => ({ ...prev, [targetStep]: analysis }));
+  const storeOverviewAnalysis = useCallback((targetStep: number, analysis: PositionAnalysis) => {
+    overviewCache.current.set(targetStep, analysis);
+    setOverviewEntries((prev) => (
+      prev[targetStep] === analysis ? prev : { ...prev, [targetStep]: analysis }
+    ));
     setEvals((prev) => {
       if (prev[targetStep] === analysis.score) return prev;
       const next = [...prev];
@@ -654,11 +734,64 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     });
   }, []);
 
-  const ensureAnalysis = useCallback(async (targetStep: number, depth = 10, multiPv = 3): Promise<PositionAnalysis | null> => {
-    const cached = analysisCache.current.get(targetStep);
+  const storeDetailAnalysis = useCallback((cacheKey: string, analysis: PositionAnalysis) => {
+    detailCache.current.set(cacheKey, analysis);
+    setDetailEntries((prev) => (
+      prev[cacheKey] === analysis ? prev : { ...prev, [cacheKey]: analysis }
+    ));
+  }, []);
+
+  const ensureOverviewAnalysis = useCallback(async (targetStep: number): Promise<PositionAnalysis | null> => {
+    const cached = overviewCache.current.get(targetStep);
     if (cached) return cached;
 
-    const existingRequest = pendingAnalysis.current.get(targetStep);
+    const existingRequest = pendingOverview.current.get(targetStep);
+    if (existingRequest) return existingRequest;
+
+    const position = positions[targetStep];
+    if (!position) return null;
+
+    const request = (async () => {
+      const fetchOnce = async () => {
+        const result = await getAnalysisOrThrow(position.fen, OVERVIEW_DEPTH, OVERVIEW_MULTI_PV);
+        const next = buildPositionAnalysis(position.fen, result);
+        storeOverviewAnalysis(targetStep, next);
+        return next;
+      };
+
+      try {
+        return await fetchOnce();
+      } catch (error) {
+        if (readErrorStatus(error) === 429) {
+          await delay(OVERVIEW_RETRY_DELAY_MS);
+          try {
+            return await fetchOnce();
+          } catch (retryError) {
+            console.error('Error fetching overview engine analysis:', retryError);
+            return null;
+          }
+        }
+        console.error('Error fetching overview engine analysis:', error);
+        return null;
+      } finally {
+        pendingOverview.current.delete(targetStep);
+      }
+    })();
+
+    pendingOverview.current.set(targetStep, request);
+    return request;
+  }, [positions, storeOverviewAnalysis]);
+
+  const ensureDetailAnalysis = useCallback(async (
+    targetStep: number,
+    depth: number,
+    multiPv: number,
+    cacheKey: string,
+  ): Promise<PositionAnalysis | null> => {
+    const cached = detailCache.current.get(cacheKey);
+    if (cached) return cached;
+
+    const existingRequest = pendingDetail.current.get(cacheKey);
     if (existingRequest) return existingRequest;
 
     const position = positions[targetStep];
@@ -668,33 +801,44 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
       .then((result) => {
         if (!result) return null;
         const next = buildPositionAnalysis(position.fen, result);
-        storeAnalysis(targetStep, next);
+        storeDetailAnalysis(cacheKey, next);
         return next;
       })
       .finally(() => {
-        pendingAnalysis.current.delete(targetStep);
+        pendingDetail.current.delete(cacheKey);
       });
 
-    pendingAnalysis.current.set(targetStep, request);
+    pendingDetail.current.set(cacheKey, request);
     return request;
-  }, [positions, storeAnalysis]);
+  }, [positions, storeDetailAnalysis]);
 
   useEffect(() => () => {
     analysisRunId.current += 1;
   }, []);
 
   useEffect(() => {
+    savedMoveNotesRef.current = savedMoveNotes;
+  }, [savedMoveNotes]);
+
+  useEffect(() => {
+    draftMoveNotesRef.current = draftMoveNotes;
+  }, [draftMoveNotes]);
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't intercept if focus is in an input
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(step - 1); }
-      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(step + 1); }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(step - 1, 'keyboard'); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(step + 1, 'keyboard'); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [step, goTo]);
 
   useEffect(() => {
+    const source = stepScrollSource.current;
+    stepScrollSource.current = 'controls';
+    if (source !== 'move-list' || !moveListRef.current) return;
+
     if (!moveListRef.current) return;
     const container = moveListRef.current;
     const active = container.querySelector('.gh-move--active');
@@ -717,22 +861,72 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
   const currentPosition = positions[step] ?? positions[0]!;
   const { board, lastMove, kingInCheck } = currentPosition;
   const isFlipped = game.player_color === 'b';
-  const currentAnalysis = analysisEntries[step] ?? null;
+  const currentAnalysis = detailEntries[detailAfterKey(step)] ?? null;
+  const currentBeforeAnalysis = step > 0 ? detailEntries[detailBeforeKey(step - 1)] ?? null : null;
 
   useEffect(() => {
     let active = true;
-    const needsCurrent = !analysisCache.current.has(step);
-    setIsAnalyzingMove(needsCurrent);
+    const needsCurrent = !detailCache.current.has(detailAfterKey(step));
+    const needsBefore = step > 0 && !detailCache.current.has(detailBeforeKey(step - 1));
+    setIsAnalyzingMove(needsCurrent || needsBefore);
 
     void Promise.all([
-      ensureAnalysis(step, 12, 3),
-      step > 0 ? ensureAnalysis(step - 1, 8, 2) : Promise.resolve(null),
+      ensureDetailAnalysis(step, POSTMOVE_DETAIL_DEPTH, POSTMOVE_DETAIL_MULTI_PV, detailAfterKey(step)),
+      step > 0
+        ? ensureDetailAnalysis(step - 1, PREMOVE_DETAIL_DEPTH, PREMOVE_DETAIL_MULTI_PV, detailBeforeKey(step - 1))
+        : Promise.resolve(null),
+      ensureOverviewAnalysis(step),
+      step > 0 ? ensureOverviewAnalysis(step - 1) : Promise.resolve(null),
     ]).finally(() => {
       if (active) setIsAnalyzingMove(false);
     });
 
     return () => { active = false; };
-  }, [ensureAnalysis, step]);
+  }, [ensureDetailAnalysis, ensureOverviewAnalysis, step]);
+
+  const saveMoveNotes = useCallback(async () => {
+    if (noteSaveInFlight.current) {
+      noteSaveQueued.current = true;
+      return;
+    }
+
+    const snapshot = [...draftMoveNotesRef.current];
+    if (snapshot.every((note, index) => note === savedMoveNotesRef.current[index])) {
+      setNotesSaveError(null);
+      return;
+    }
+
+    noteSaveInFlight.current = true;
+    setNotesSaveError(null);
+
+    try {
+      const nextNotes = normalizeMoveNotes(await updateGameMoveNotes(game.id, snapshot), moves.length);
+      setSavedMoveNotes(nextNotes);
+    } catch (error) {
+      setNotesSaveError(error instanceof Error ? error.message : 'Failed to save notes');
+    } finally {
+      noteSaveInFlight.current = false;
+      if (noteSaveQueued.current) {
+        noteSaveQueued.current = false;
+        void saveMoveNotes();
+      }
+    }
+  }, [game.id, moves.length]);
+
+  const hasDirtyNotes = useMemo(
+    () => draftMoveNotes.some((note, index) => note !== savedMoveNotes[index]),
+    [draftMoveNotes, savedMoveNotes],
+  );
+
+  useEffect(() => {
+    if (!hasDirtyNotes) return;
+
+    const timer = window.setTimeout(() => {
+      void saveMoveNotes();
+    }, NOTE_SAVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [draftMoveNotes, hasDirtyNotes, saveMoveNotes]);
 
   const runFullAnalysis = async () => {
     if (isAnalyzingGame) return;
@@ -741,40 +935,26 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     setIsAnalyzingGame(true);
     setAnalyzedCount(0);
 
-    const collected = new Map(analysisCache.current);
-    const batchSize = 4;
-    let completed = 0;
+    try {
+      let completed = 0;
+      for (let targetStep = 0; targetStep <= moves.length; targetStep += 1) {
+        await ensureOverviewAnalysis(targetStep);
 
-    for (let start = 0; start <= moves.length; start += batchSize) {
-      const batch = Array.from(
-        { length: Math.min(batchSize, moves.length - start + 1) },
-        (_, offset) => start + offset,
-      );
-
-      const results = await Promise.all(batch.map(async (targetStep) => {
-        const analysis = collected.get(targetStep) ?? await ensureAnalysis(targetStep, 8, 2);
-        return { targetStep, analysis };
-      }));
-
-      if (analysisRunId.current !== runId) {
-        return;
-      }
-
-      for (const { targetStep, analysis } of results) {
-        if (analysis) {
-          collected.set(targetStep, analysis);
+        if (analysisRunId.current !== runId) {
+          return;
         }
+
         completed += 1;
+        setAnalyzedCount(completed);
+
+        if (targetStep < moves.length) {
+          await delay(OVERVIEW_STEP_DELAY_MS);
+        }
       }
-
-      setAnalyzedCount(completed);
-      analysisCache.current = new Map(collected);
-      setAnalysisEntries(toAnalysisRecord(collected));
-      setEvals(toEvalSeries(moves.length, collected));
-    }
-
-    if (analysisRunId.current === runId) {
-      setIsAnalyzingGame(false);
+    } finally {
+      if (analysisRunId.current === runId) {
+        setIsAnalyzingGame(false);
+      }
     }
   };
 
@@ -787,8 +967,8 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     const reviews: Record<number, MoveReview> = {};
 
     for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
-      const before = analysisEntries[moveIndex];
-      const after = analysisEntries[moveIndex + 1];
+      const before = overviewEntries[moveIndex];
+      const after = overviewEntries[moveIndex + 1];
       if (!before || !after) continue;
 
       const review = classifyMoveReview(moveIndex, moves[moveIndex]!, before, after);
@@ -798,12 +978,34 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
     }
 
     return reviews;
-  }, [analysisEntries, moves]);
+  }, [moves, overviewEntries]);
 
-  const playerSummaries = useMemo(() => summarizePlayers(moves, moveTimes, analysisEntries), [analysisEntries, moveTimes, moves]);
+  const playerSummaries = useMemo(
+    () => summarizePlayers(moves, moveTimes, overviewEntries),
+    [moveTimes, moves, overviewEntries],
+  );
 
   const selectedMoveReview = step > 0 ? moveReviews[step] ?? null : null;
   const selectedMoveSan = step > 0 ? moves[step - 1] ?? null : null;
+  const selectedMoveReference = selectedMoveSan ? formatMoveReference(step, selectedMoveSan) : null;
+  const currentNote = step > 0 ? draftMoveNotes[step - 1] ?? '' : '';
+  const currentNoteDirty = step > 0 && currentNote !== savedMoveNotes[step - 1];
+  const noteSaveState = step > 0
+    ? notesSaveError && currentNoteDirty
+      ? 'error'
+      : currentNoteDirty
+        ? 'saving'
+        : 'saved'
+    : 'saved';
+  const selectedSquareBadges = useMemo(() => {
+    if (!lastMove || !selectedMoveReview) return {};
+    const tone = badgeToneForReview(selectedMoveReview);
+    const text = badgeTextForReview(selectedMoveReview);
+    if (!tone || !text) return {};
+    return { [lastMove.to]: { text, tone } };
+  }, [lastMove, selectedMoveReview]) as Partial<Record<Square, { text: string; tone: ReviewBadgeTone }>>;
+  const bestLine = currentBeforeAnalysis?.lines[0] ?? null;
+  const playedLine = currentAnalysis?.lines[0] ?? null;
 
   return (
     <div className="gh-replay">
@@ -826,7 +1028,7 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
       </div>
 
       <div className="gh-replay__graph-area">
-        <EvalGraph scores={evals} currentStep={step} onSelect={goTo} />
+        <EvalGraph scores={evals} currentStep={step} onSelect={(targetStep) => goTo(targetStep, 'graph')} />
         
         {!isAnalyzingGame && evals.includes(null) && (
           <button className="gh-analyze-btn" onClick={runFullAnalysis}>
@@ -902,24 +1104,25 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
             legalMoves={[]}
             lastMove={lastMove}
             kingInCheck={kingInCheck}
+            squareBadges={selectedSquareBadges}
             isFlipped={isFlipped}
             onSquareClick={() => {/* read-only */}}
           />
           <div className="gh-controls" role="group" aria-label="Replay controls">
-            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(0)} disabled={step === 0} title="Start" aria-label="Go to start">
+            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(0, 'controls')} disabled={step === 0} title="Start" aria-label="Go to start">
               <span className="gh-ctrl-btn__icon">⏮</span>
               <span className="gh-ctrl-btn__label">Start</span>
             </button>
-            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step - 1)} disabled={step === 0} title="Previous (←)" aria-label="Previous move">
+            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step - 1, 'controls')} disabled={step === 0} title="Previous (←)" aria-label="Previous move">
               <span className="gh-ctrl-btn__icon">◀</span>
               <span className="gh-ctrl-btn__label">Prev</span>
             </button>
             <span className="gh-ctrl-counter" aria-live="polite">Move {step} of {moves.length}</span>
-            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step + 1)} disabled={step === moves.length} title="Next (→)" aria-label="Next move">
+            <button className="gh-ctrl-btn gh-ctrl-btn--primary" onClick={() => goTo(step + 1, 'controls')} disabled={step === moves.length} title="Next (→)" aria-label="Next move">
               <span className="gh-ctrl-btn__label">Next</span>
               <span className="gh-ctrl-btn__icon">▶</span>
             </button>
-            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(moves.length)} disabled={step === moves.length} title="End" aria-label="Go to end">
+            <button className="gh-ctrl-btn gh-ctrl-btn--edge" onClick={() => goTo(moves.length, 'controls')} disabled={step === moves.length} title="End" aria-label="Go to end">
               <span className="gh-ctrl-btn__label">End</span>
               <span className="gh-ctrl-btn__icon">⏭</span>
             </button>
@@ -947,29 +1150,35 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
                 <span className="gh-move-num">{pair.number}.</span>
                 <button
                   className={`gh-move ${step === whiteIdx ? 'gh-move--active' : ''}`}
-                  onClick={() => goTo(whiteIdx)}
+                  onClick={() => goTo(whiteIdx, 'move-list')}
                 >
                   <span className="gh-move__main">{pair.white}</span>
                   <span className="gh-move__meta">
-                    {typeof moveTimes[whiteIdx - 1] === 'number' && (
-                      <span className="gh-move-time">{formatMoveDuration(moveTimes[whiteIdx - 1]!)}</span>
-                    )}
-                    {moveReviews[whiteIdx] && (
-                      <span className={`gh-move-tag gh-move-tag--${moveReviews[whiteIdx]!.tone}`}>
-                        {moveReviews[whiteIdx]!.label}
-                      </span>
-                    )}
+                      {typeof moveTimes[whiteIdx - 1] === 'number' && (
+                        <span className="gh-move-time">{formatMoveDuration(moveTimes[whiteIdx - 1]!)}</span>
+                      )}
+                      {hasMoveNote(draftMoveNotes[whiteIdx - 1]) && (
+                        <span className="gh-move-note-indicator" aria-label="Saved note">•</span>
+                      )}
+                      {moveReviews[whiteIdx] && (
+                        <span className={`gh-move-tag gh-move-tag--${moveReviews[whiteIdx]!.tone}`}>
+                          {moveReviews[whiteIdx]!.label}
+                        </span>
+                      )}
                   </span>
                 </button>
                 {pair.black && (
                   <button
                     className={`gh-move ${step === blackIdx ? 'gh-move--active' : ''}`}
-                    onClick={() => goTo(blackIdx)}
+                    onClick={() => goTo(blackIdx, 'move-list')}
                   >
                     <span className="gh-move__main">{pair.black}</span>
                     <span className="gh-move__meta">
                       {typeof moveTimes[blackIdx - 1] === 'number' && (
                         <span className="gh-move-time">{formatMoveDuration(moveTimes[blackIdx - 1]!)}</span>
+                      )}
+                      {hasMoveNote(draftMoveNotes[blackIdx - 1]) && (
+                        <span className="gh-move-note-indicator" aria-label="Saved note">•</span>
                       )}
                       {moveReviews[blackIdx] && (
                         <span className={`gh-move-tag gh-move-tag--${moveReviews[blackIdx]!.tone}`}>
@@ -989,44 +1198,110 @@ function GameReplay({ game, onBack, onDelete, deletingGameId }: GameReplayProps)
 
       <div className="gh-analysis-panel">
         <h4 className="gh-analysis-panel__title">Engine Analysis</h4>
-        {isAnalyzingMove ? (
-          <div className="gh-analysis-loading">...</div>
-        ) : currentAnalysis ? (
-          <div className="gh-analysis-content">
-            {selectedMoveReview && selectedMoveSan && (
-              <div className="gh-review-summary">
-                <span className={`gh-review-pill gh-review-pill--${selectedMoveReview.tone}`}>
-                  {selectedMoveReview.label}
-                </span>
-                <p className="gh-review-summary__text">
-                  {selectedMoveReview.tone === 'best'
-                    ? `${selectedMoveSan} matches the engine's top choice.`
-                    : `${selectedMoveSan} costs about ${formatPawnLoss(selectedMoveReview.loss)}.${selectedMoveReview.bestMoveSan ? ` Best was ${selectedMoveReview.bestMoveSan}.` : ''}`}
+        <div className="gh-analysis-content">
+          {selectedMoveReview && selectedMoveSan && (
+            <div className="gh-review-summary">
+              <span className={`gh-review-pill gh-review-pill--${selectedMoveReview.tone}`}>
+                {selectedMoveReview.label}
+              </span>
+              <p className="gh-review-summary__text">
+                {selectedMoveReview.tone === 'best'
+                  ? `${selectedMoveSan} matches the engine's top choice.`
+                  : `${selectedMoveSan} costs about ${formatPawnLoss(selectedMoveReview.loss)}.${selectedMoveReview.bestMoveSan ? ` Best was ${selectedMoveReview.bestMoveSan}.` : ''}`}
+              </p>
+            </div>
+          )}
+
+          {selectedMoveReview && selectedMoveSan && currentAnalysis && bestLine && playedLine && (
+            <div className="gh-line-compare">
+              <div className="gh-line-compare__card gh-line-compare__card--best">
+                <div className="gh-line-compare__head">
+                  <span className="gh-line-compare__label">Best line</span>
+                  <span className="gh-line-compare__score">{formatScore(bestLine.score, bestLine.mate)}</span>
+                </div>
+                <p className="gh-line-compare__moves">{formatSanSummary(bestLine.sanLine)}</p>
+              </div>
+              <div className="gh-line-compare__card gh-line-compare__card--played">
+                <div className="gh-line-compare__head">
+                  <span className="gh-line-compare__label">Played line</span>
+                  <span className="gh-line-compare__score">{formatScore(currentAnalysis.score, currentAnalysis.mate)}</span>
+                </div>
+                <p className="gh-line-compare__moves">
+                  {formatSanSummary([selectedMoveSan, ...playedLine.sanLine])}
                 </p>
               </div>
-            )}
-            <div className="gh-analysis-eval">
-              {formatScore(currentAnalysis.score, currentAnalysis.mate)}
             </div>
-            <div className="gh-analysis-lines">
-              {currentAnalysis.lines.map((line, idx) => {
-                const firstMove = line.sanLine[0] ?? '...';
-                return (
-                  <div key={idx} className="gh-analysis-line">
-                    <span className="gh-al-score">{formatScore(line.score, line.mate)}</span>
-                    <span className="gh-al-move">
-                      <strong>{firstMove}</strong>
-                      <span className="gh-al-rest">
-                        {line.sanLine.slice(1).join(' ')}
-                        {line.sanLine.length >= 4 ? '...' : ''}
+          )}
+
+          {step > 0 && selectedMoveReference && (
+            <div className="gh-move-note">
+              <div className="gh-move-note__head">
+                <label className="gh-move-note__title" htmlFor={`gh-note-${game.id}`}>
+                  Private note
+                </label>
+                <div className="gh-move-note__status">
+                  <span className={`gh-move-note__state gh-move-note__state--${noteSaveState}`}>
+                    {noteSaveState === 'error' ? 'Save failed' : noteSaveState === 'saving' ? 'Saving…' : 'Saved'}
+                  </span>
+                  {noteSaveState === 'error' && (
+                    <button
+                      type="button"
+                      className="gh-move-note__retry"
+                      onClick={() => void saveMoveNotes()}
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              </div>
+              <textarea
+                id={`gh-note-${game.id}`}
+                className="gh-move-note__input"
+                value={currentNote}
+                maxLength={1000}
+                placeholder={`Your note for ${selectedMoveReference}`}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setNotesSaveError(null);
+                  setDraftMoveNotes((prev) => {
+                    const next = [...prev];
+                    next[step - 1] = value;
+                    return next;
+                  });
+                }}
+              />
+            </div>
+          )}
+
+          {isAnalyzingMove ? (
+            <div className="gh-analysis-loading">Loading engine lines…</div>
+          ) : currentAnalysis ? (
+            <>
+              <div className="gh-analysis-eval">
+                {formatScore(currentAnalysis.score, currentAnalysis.mate)}
+              </div>
+              <div className="gh-analysis-lines">
+                {currentAnalysis.lines.map((line, idx) => {
+                  const firstMove = line.sanLine[0] ?? '...';
+                  return (
+                    <div key={idx} className="gh-analysis-line">
+                      <span className="gh-al-score">{formatScore(line.score, line.mate)}</span>
+                      <span className="gh-al-move">
+                        <strong>{firstMove}</strong>
+                        <span className="gh-al-rest">
+                          {line.sanLine.slice(1).join(' ')}
+                          {line.sanLine.length >= 6 ? '...' : ''}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="gh-analysis-loading">Engine lines unavailable for this position.</div>
+          )}
+        </div>
       </div>
     </div>
   );
